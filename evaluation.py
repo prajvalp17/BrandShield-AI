@@ -56,7 +56,9 @@ def predicted_groups(rows):
     sharing a normalized phone or redirect URL."""
     flagged = [(r, o) for r, o in rows if o["status"] == "FLAGGED"]
     if clustering is not None and not MOCK:
-        raise NotImplementedError("Wrap clustering.py output into a list of sets of entity_ids")
+        results = [o for _, o in rows]
+        candidates = [clean(r) for r, _ in rows]
+        return [set(c["linked_candidate_ids"]) for c in clustering.cluster(results, candidates)]
     parent = {r["entity_id"]: r["entity_id"] for r, _ in flagged}
     def find(x):
         while parent[x] != x:
@@ -113,41 +115,52 @@ def link_metrics(rows):
                 false_connections=fp, missed_links=fn, link_precision=round(P, 3), link_recall=round(R, 3),
                 false_connection_pairs=sorted(tuple(sorted(p)) for p in pred_pairs - true_pairs))
 
-def main():
-    brands = {b["brand_id"]: b for b in load("data/brand_registry.json")["brands"]}
+def evaluate_split(brands, social_path, app_path):
     all_rows, res = [], {}
-    for kind, path in (("social", "data/social_profiles.json"), ("app", "data/app_listings.json")):
+    for kind, path in (("social", social_path), ("app", app_path)):
         rows = [(r, decide(kind, brands[r["brand_id"]], clean(r))) for r in load(path)]
         res[kind] = detection_metrics(rows); all_rows += rows
     res["overall"] = detection_metrics(all_rows)
     res["links"] = link_metrics(all_rows)
-    res["_meta"] = dict(engines="MOCK" if MOCK else "REAL", note="Prototype results on simulated data; not real-world accuracy.")
+    return res
+
+def main():
+    brands = {b["brand_id"]: b for b in load("data/brand_registry.json")["brands"]}
+    splits = {"dev": evaluate_split(brands, "data/social_profiles.json", "data/app_listings.json")}
+    if os.path.exists("holdout/social_profiles.json"):
+        splits["holdout"] = evaluate_split(brands, "holdout/social_profiles.json", "holdout/app_listings.json")
+    res = dict(splits)
+    res["_meta"] = dict(engines="MOCK" if MOCK else "REAL", splits=list(splits),
+                        note="Prototype results on simulated data; not real-world accuracy. "
+                             "Hold-out is only unseen if no engine or threshold changed after its first run.")
     os.makedirs("reports", exist_ok=True)
     json.dump(res, open("reports/evaluation_results.json", "w"), indent=2)
 
-    # slide-ready markdown table
-    lines = [f"_Engines: {res['_meta']['engines']} — simulated prototype data, not real-world accuracy_", "",
-             "| Target | N | Precision | Recall | F1 | Official FP | Review flags |", "|---|---|---|---|---|---|---|"]
-    for k in ("social", "app", "overall"):
-        m = res[k]
-        lines.append(f"| {k} | {m['n']} | {m['precision']} | {m['recall']} | {m['f1']} | "
-                     f"{m['official_false_positives']}/{m['official_assets']} | {m['review_flagged']} |")
-    lines += ["", "Confusion matrix (overall) — rows: truth, columns: status", "",
-              "| Truth \\ Status | CLEARED | NOT_FLAGGED | FLAGGED |", "|---|---|---|---|"]
-    for t, row in res["overall"]["confusion_matrix"].items():
-        lines.append(f"| {t} | {row['CLEARED']} | {row['NOT_FLAGGED']} | {row['FLAGGED']} |")
-    L = res["links"]
-    lines += ["", f"Possible-connection test: {L['correct_links']}/{L['true_links']} true links found, "
-              f"{L['false_connections']} false connections (link precision {L['link_precision']})."]
+    lines = [f"_Engines: {res['_meta']['engines']}. Simulated prototype data, not real-world accuracy._", "",
+             "| Set | Target | N | Precision | Recall | F1 | Official FP | Review flags |", "|---|---|---|---|---|---|---|---|"]
+    for name, sp in splits.items():
+        for k in ("social", "app", "overall"):
+            m = sp[k]
+            lines.append(f"| {name} | {k} | {m['n']} | {m['precision']} | {m['recall']} | {m['f1']} | "
+                         f"{m['official_false_positives']}/{m['official_assets']} | {m['review_flagged']} |")
+    for name, sp in splits.items():
+        lines += ["", f"Confusion matrix, {name} (rows: truth, columns: status)", "",
+                  "| Truth \\ Status | CLEARED | NOT_FLAGGED | FLAGGED |", "|---|---|---|---|"]
+        for t, row in sp["overall"]["confusion_matrix"].items():
+            lines.append(f"| {t} | {row['CLEARED']} | {row['NOT_FLAGGED']} | {row['FLAGGED']} |")
+        L = sp["links"]
+        lines += ["", f"Possible-connection test, {name}: {L['correct_links']}/{L['true_links']} true links found, "
+                  f"{L['false_connections']} false connections (link precision {L['link_precision']})."]
     open("reports/results_table.md", "w").write("\n".join(lines) + "\n")
 
     print("\n".join(lines))
-    for k in ("social", "app"):
-        for e in res[k]["errors"]:
-            print(f"  [{k}] MISS {e['id']}: truth={e['truth']} got={e['got']} | {e['note']}")
-    for p in L["false_connection_pairs"]:
-        print("  [link] FALSE CONNECTION", p)
-    assert res["overall"]["official_false_positives"] == 0, "Official asset was FLAGGED!"
+    for name, sp in splits.items():
+        for k in ("social", "app"):
+            for e in sp[k]["errors"]:
+                print(f"  [{name}/{k}] MISS {e['id']}: truth={e['truth']} got={e['got']} | {e['note']}")
+        for p in sp["links"]["false_connection_pairs"]:
+            print(f"  [{name}/link] FALSE CONNECTION", p)
+    assert all(sp["overall"]["official_false_positives"] == 0 for sp in splits.values()), "Official asset was FLAGGED!"
 
 if __name__ == "__main__":
     main()

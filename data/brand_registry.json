@@ -32,6 +32,13 @@
       "official_contact_numbers": [
         "+91 80000 10001"
       ],
+      "official_descriptions": [
+        "Manage your Zenbank account securely.",
+        "Companion app from Zenbank."
+      ],
+      "authorized_publishers": [
+        "Zenbank Payments Partner Ltd"
+      ],
       "evidence_source": "simulated"
     },
     {
@@ -66,6 +73,13 @@
       "official_contact_numbers": [
         "+91 80000 20001"
       ],
+      "official_descriptions": [
+        "Manage your PayNest account securely.",
+        "Companion app from PayNest."
+      ],
+      "authorized_publishers": [
+        "PayNest Merchant Services"
+      ],
       "evidence_source": "simulated"
     },
     {
@@ -99,6 +113,13 @@
       ],
       "official_contact_numbers": [
         "+91 80000 30001"
+      ],
+      "official_descriptions": [
+        "Manage your QuickCart account securely.",
+        "Companion app from QuickCart."
+      ],
+      "authorized_publishers": [
+        "QuickCart Delivery Partners"
       ],
       "evidence_source": "simulated"
     }

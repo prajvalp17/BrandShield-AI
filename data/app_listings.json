@@ -40,11 +40,11 @@
     "package_id": "com.zenbank.rewards.apk",
     "publisher": "Fast Cash Apps",
     "description": "Login with your Zenbank card number to claim rewards.",
-    "contact_number": "+91 90000 11111",
-    "redirect_url": "http://secure-verify-login.example/auth",
+    "contact_number": "90000 11111",
+    "redirect_url": "http://apk-zenbank.example/get",
     "evidence_source": "simulated",
     "ground_truth": "impersonator",
-    "category_note": "name match + publisher mismatch + credential bait (Ring A, cross-platform)",
+    "category_note": "name match + publisher mismatch + credential bait (Ring A, cross-platform; linked by phone only, written without +91)",
     "expected_ring": "ring_A"
   },
   {
@@ -55,7 +55,7 @@
     "app_name": "Zenbank Mobile Pro",
     "package_id": "com.zenbankmobile.pro",
     "publisher": "Mobi Studio Co",
-    "description": "The best way to use Zenbank. Same features as the official Zenbank app.",
+    "description": "Manage your Zenbank account securely and earn extra rewards.",
     "contact_number": "+91 90000 20010",
     "redirect_url": null,
     "evidence_source": "simulated",
@@ -65,6 +65,22 @@
   },
   {
     "entity_id": "app_05",
+    "target_type": "app_listing",
+    "brand_id": "brand_01",
+    "platform": "Android",
+    "app_name": "Zenbank Partner Portal",
+    "package_id": "com.zenbankpartner.portal",
+    "publisher": "Zenbank Payments Partner Ltd",
+    "description": "Portal for Zenbank authorized partners.",
+    "contact_number": null,
+    "redirect_url": "https://zenbank.example",
+    "evidence_source": "simulated",
+    "ground_truth": "benign",
+    "category_note": "authorized publisher: must NOT be flagged",
+    "expected_ring": null
+  },
+  {
+    "entity_id": "app_06",
     "target_type": "app_listing",
     "brand_id": "brand_01",
     "platform": "Android",
@@ -80,7 +96,7 @@
     "expected_ring": null
   },
   {
-    "entity_id": "app_06",
+    "entity_id": "app_07",
     "target_type": "app_listing",
     "brand_id": "brand_02",
     "platform": "Android",
@@ -96,7 +112,7 @@
     "expected_ring": null
   },
   {
-    "entity_id": "app_07",
+    "entity_id": "app_08",
     "target_type": "app_listing",
     "brand_id": "brand_02",
     "platform": "Android",
@@ -112,7 +128,7 @@
     "expected_ring": null
   },
   {
-    "entity_id": "app_08",
+    "entity_id": "app_09",
     "target_type": "app_listing",
     "brand_id": "brand_02",
     "platform": "Android",
@@ -128,14 +144,14 @@
     "expected_ring": "ring_A"
   },
   {
-    "entity_id": "app_09",
+    "entity_id": "app_10",
     "target_type": "app_listing",
     "brand_id": "brand_02",
     "platform": "Android",
     "app_name": "PayNest Mobile Pro",
     "package_id": "com.paynestmobile.pro",
     "publisher": "Mobi Studio Co",
-    "description": "The best way to use PayNest. Same features as the official PayNest app.",
+    "description": "Manage your PayNest account securely and earn extra rewards.",
     "contact_number": "+91 90000 20011",
     "redirect_url": null,
     "evidence_source": "simulated",
@@ -144,7 +160,23 @@
     "expected_ring": null
   },
   {
-    "entity_id": "app_10",
+    "entity_id": "app_11",
+    "target_type": "app_listing",
+    "brand_id": "brand_02",
+    "platform": "Android",
+    "app_name": "PayNest Partner Portal",
+    "package_id": "com.paynestpartner.portal",
+    "publisher": "PayNest Merchant Services",
+    "description": "Portal for PayNest authorized partners.",
+    "contact_number": null,
+    "redirect_url": "https://paynest.example",
+    "evidence_source": "simulated",
+    "ground_truth": "benign",
+    "category_note": "authorized publisher: must NOT be flagged",
+    "expected_ring": null
+  },
+  {
+    "entity_id": "app_12",
     "target_type": "app_listing",
     "brand_id": "brand_02",
     "platform": "Android",
@@ -160,7 +192,7 @@
     "expected_ring": null
   },
   {
-    "entity_id": "app_11",
+    "entity_id": "app_13",
     "target_type": "app_listing",
     "brand_id": "brand_03",
     "platform": "Android",
@@ -176,7 +208,7 @@
     "expected_ring": null
   },
   {
-    "entity_id": "app_12",
+    "entity_id": "app_14",
     "target_type": "app_listing",
     "brand_id": "brand_03",
     "platform": "Android",
@@ -192,7 +224,7 @@
     "expected_ring": null
   },
   {
-    "entity_id": "app_13",
+    "entity_id": "app_15",
     "target_type": "app_listing",
     "brand_id": "brand_03",
     "platform": "Android",
@@ -208,14 +240,14 @@
     "expected_ring": null
   },
   {
-    "entity_id": "app_14",
+    "entity_id": "app_16",
     "target_type": "app_listing",
     "brand_id": "brand_03",
     "platform": "Android",
     "app_name": "QuickCart Mobile Pro",
     "package_id": "com.quickcartmobile.pro",
     "publisher": "Mobi Studio Co",
-    "description": "The best way to use QuickCart. Same features as the official QuickCart app.",
+    "description": "Manage your QuickCart account securely and earn extra rewards.",
     "contact_number": "+91 90000 20013",
     "redirect_url": null,
     "evidence_source": "simulated",
@@ -224,7 +256,23 @@
     "expected_ring": null
   },
   {
-    "entity_id": "app_15",
+    "entity_id": "app_17",
+    "target_type": "app_listing",
+    "brand_id": "brand_03",
+    "platform": "Android",
+    "app_name": "QuickCart Partner Portal",
+    "package_id": "com.quickcartpartner.portal",
+    "publisher": "QuickCart Delivery Partners",
+    "description": "Portal for QuickCart authorized partners.",
+    "contact_number": null,
+    "redirect_url": "https://quickcart.example",
+    "evidence_source": "simulated",
+    "ground_truth": "benign",
+    "category_note": "authorized publisher: must NOT be flagged",
+    "expected_ring": null
+  },
+  {
+    "entity_id": "app_18",
     "target_type": "app_listing",
     "brand_id": "brand_03",
     "platform": "Android",
@@ -240,7 +288,7 @@
     "expected_ring": null
   },
   {
-    "entity_id": "app_16",
+    "entity_id": "app_19",
     "target_type": "app_listing",
     "brand_id": "brand_02",
     "platform": "Android",
