@@ -1,5 +1,5 @@
 # CONTRACT.md — BrandShield AI
-**Version:** 0.7-RULED  |  **Owner / tie-breaker:** Member 1  |  **Status:** NOT SIGNED (rulings below take effect on sign-off)
+**Version:** 0.8-RULED  |  **Owner / tie-breaker:** Member 1  |  **Status:** NOT SIGNED (rulings below take effect on sign-off)
 Single source of truth for schemas and interfaces. If anything elsewhere disagrees, this file wins.
 Rulings are recorded in section 9. Anything still marked **[OPEN]** must be closed by the date stated next to it (default: the H0–2 session).
 
@@ -23,7 +23,9 @@ Engines never receive `ground_truth`, `category_note`, `expected_ring`.
 **Missing values:** absent or `null` = unknown. Unknown never raises risk, and a missing signal is excluded from scoring (not treated as 0 evidence of safety either).
 
 ## 2. Brand registry
-`brands[]`: `brand_id, name, official_handles{platform:[handles]}, official_domains[], official_apps[{platform,package_id,publisher}], official_contact_numbers[]`.
+`brands[]`: `brand_id, name, official_handles{platform:[handles]}, official_domains[], official_apps[{platform,package_id,publisher}], official_contact_numbers[]`, plus two **optional** lists (ruling 24, 26):
+- `official_descriptions[]`: descriptions of the brand's official apps. App engines compare a candidate's description against these; if the list is absent or empty, `description_similarity` is `null`.
+- `authorized_publishers[]`: publishers the brand authorizes besides its own (partners, resellers). `publisher_mismatch` is measured against the official publisher **plus** these; if absent, only the official publisher counts. A candidate from an authorized publisher is not a mismatch.
 - Official match = exact match after normalization on a registered handle (same platform), domain, or package id.
 - A handle/package may belong to only one brand; Member 1's loader asserts this.
 - Official detection runs **before** scoring. A matched official asset is `CLEARED` and cannot be overridden by similarity signals.
@@ -70,6 +72,10 @@ clustering.cluster(results: list[dict], candidates: list[dict]) -> list[dict]   
 | identity | `handle_similarity`, `name_similarity` | `app_name_similarity`, `package_similarity` |
 | content | `scam_phrase` | `description_similarity`, `credential_bait` |
 | metadata | `account_age` | `publisher_mismatch` |
+
+### Normalization (shared utility, Member 2; ruling 23)
+- `normalize_contact_number`: keep digits only; if there are 10 or more digits keep the **last 10**; otherwise `None`. So `+91 90000 11111`, `90000 11111` and `090000-11111` all become `9000011111`, while numbers one digit apart stay different.
+- `normalize_redirect_url`: full URL compared (not just the domain). **[OPEN, Member 2, before H6]** whether a trailing slash is ignored (`/a/` equals `/a`); proposal: yes.
 
 `account_age` mapping (Member 2 supplies, defaults): ≤14 days → 0.9; ≤90 days → 0.5; older → 0.0; unknown → `null`.
 
@@ -144,7 +150,7 @@ The report builder returns a JSON-serializable dictionary with these fixed top-l
 - `evidence`: the `evidence` dict from the matching entry in `engine_outputs` (by `entity_id`); `{}` when unavailable. (`combine` does not carry evidence, which is why the builder takes `engine_outputs`.)
 - `ring_id`: `null` in every `combine` result. When clustering ships, the builder fills `ring_id` in its report copy from `clusters`; otherwise it stays `null`.
 - **Deterministic output** (so the hash is reproducible): `results` sorted by `entity_id`, `clusters` by `ring_id`, no generated-at timestamp, only JSON-serializable values.
-- `clusters`: always present. Use `[]` when clustering is unavailable. When clustering ships, use Member 3's cluster-record structure, including `ring_id`, `linked_candidate_ids`, and a reason for each link. **[OPEN]** Member 3 to write the exact record structure (including how a link reason is stored) into this section before H13.
+- `clusters`: always present. Use `[]` when clustering is unavailable. When clustering ships, use Member 3's cluster-record structure, including `ring_id`, `linked_candidate_ids`, and a reason for each link. The record structure is fixed in section 7 (ruling 25).
 - **Cluster validity (ruling 22):** each candidate belongs to at most one cluster, and each `ring_id` appears once. If the `clusters` input has a candidate in more than one cluster, a duplicate `ring_id`, or a cluster without `ring_id` or `linked_candidate_ids`, `build_report` raises `ValueError` naming the offending ids. It never picks a winner and never silently drops a cluster. Clusters come from Union-Find (section 7), so they are disjoint by construction; overlap means the clustering output is wrong and must be fixed at its source (Member 3), not hidden in the report.
 - The report builder only assembles report data. It must not recalculate risk scores, change statuses, serialize JSON, or calculate hashes.
 - Report-only fields `label` and `evidence` must not be added to the frozen result schema returned by the scoring engine.
@@ -155,6 +161,13 @@ Member 4 owns report content and explanations. Member 5 owns canonical serializa
 ## 7. Optional clustering ("Threat Rings") — stretch
 - Gate H13: continue only if the core is stable. Gate H16: if unstable, omit the UI and document as future work.
 - Only `FLAGGED` candidates can be linked. Link on equal normalized `contact_number` **or** equal normalized full `redirect_url` (domain-only matches do not link; numbers one digit apart do not link).
+- **Cluster record (ruling 25):** `clustering.cluster(results, candidates)` returns a list of
+  ```json
+  {"ring_id": "ring_001", "linked_candidate_ids": ["app_03", "soc_04"],
+   "link_reasons": [{"candidate_id_1": "app_03", "candidate_id_2": "soc_04",
+                     "indicator_type": "contact_number|redirect_url", "reason": "…"}]}
+  ```
+  `ring_id` is `ring_` plus three digits, unique per cluster, assigned in a deterministic order. `linked_candidate_ids` is sorted and has at least two entries. A candidate belongs to at most one cluster. Only `FLAGGED` candidates are linked. Every cluster has at least one link reason.
 - Output goes in report data as `linked_candidate_ids` plus a reason per link. A shared indicator is a possible connection, not proof of fraud or common ownership.
 
 ## 8. Evaluation conventions (Member 1)
@@ -185,6 +198,11 @@ Counted separately: official-asset false positive (official FLAGGED), benign fal
 | 19 | `combine` input validation (M4) | Raise on missing required fields, unknown category, or out-of-range value; no silent defaults. Pending Member 4 acknowledgement. |
 | 20 | Repo layout (M3) | All modules at the repo root as in the roadmap (`social_engine.py`, `app_engine.py`, `score_engine.py`, `report_builder.py`, `normalization.py`, `clustering.py`). Member 3 to move `detection/app_engine.py`. Pending Member 3 acknowledgement. |
 | 21 | Report builder copies (M4) | Deep copy; the report shares no objects with its inputs (section 6) |
+| 23 | Contact number format (M2, M3) | Digits only, last 10 digits when there are 10 or more, else `None` (section 3). Trailing-slash handling for URLs is [OPEN] for Member 2. |
+| 24 | Official descriptions (M3) | Optional `official_descriptions[]` in the registry; absent means `description_similarity` is `null` (section 2) |
+| 25 | Cluster record structure (M3) | Section 7, as built by Member 3 |
+| 26 | Authorized publishers (M3, M4) | Optional `authorized_publishers[]`; `publisher_mismatch` measured against official plus authorized (section 2) |
+| 27 | Scoring rule for strong identity plus verified publisher mismatch without content evidence (M4) | **[OPEN]** Team decision at H13 with Members 2, 3 and 4. Formula unchanged until then. Judge it on the hold-out set, not only the development data. |
 
 ## 10. Sign-off
 | Member | Role | Signed (name, hour) |

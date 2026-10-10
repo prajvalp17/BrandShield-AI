@@ -4,3 +4,5 @@ __pycache__/
 .pytest_cache/
 .venv/
 .env
+holdout/
+make_holdout.py

@@ -346,6 +346,102 @@ def test_report_accepts_disjoint_clusters(combine, build):
     ring = {r["entity_id"]: r["ring_id"] for r in rep["results"]}
     assert ring["soc_01"] == ring["app_01"] == "ring_A" and ring["soc_02"] == "ring_B" and ring["soc_03"] is None
 
+# ------------------------------------------------------------------ v0.8 rulings 23-26
+def test_registry_optional_fields_are_lists_of_strings(brands):
+    """Rulings 24 and 26: optional lists; absent is allowed, wrong type is not."""
+    for b in brands.values():
+        for key in ("official_descriptions", "authorized_publishers", "official_contact_numbers"):
+            if key in b:
+                assert isinstance(b[key], list) and all(isinstance(x, str) and x for x in b[key]), (b["brand_id"], key)
+
+@pytest.mark.xfail(reason="Ruling 23 pending: Member 2 to keep the last 10 digits (remove this marker once it passes)", strict=False)
+def test_contact_number_normalization_ruling_23():
+    n = pytest.importorskip("normalization").normalize_contact_number
+    same = {n("+91 90000 11111"), n("90000 11111"), n("090000-11111"), n("(+91) 9000011111")}
+    assert same == {"9000011111"}, same
+    assert n("+91 90000 11112") != n("+91 90000 11111"), "one digit apart must not match"
+    assert n("12345") is None and n(None) is None and n("") is None
+
+RECORD_KEYS = {"ring_id", "linked_candidate_ids", "link_reasons"}
+
+def _cluster_inputs(phone_b="+91 90000 11111"):
+    base = {"target_type": "social_profile", "platform": "X", "brand_id": "brand_01", "evidence_source": "simulated"}
+    cands = [
+        {**base, "entity_id": "c1", "contact_number": "+91 90000 11111", "redirect_url": None},
+        {**base, "entity_id": "c2", "contact_number": phone_b, "redirect_url": None},
+        {**base, "entity_id": "c3", "contact_number": None, "redirect_url": "http://bad.example/pay"},
+        {**base, "entity_id": "c4", "contact_number": None, "redirect_url": "http://bad.example/pay"},
+        {**base, "entity_id": "c5", "contact_number": "+91 90000 11112", "redirect_url": None},   # one digit off
+        {**base, "entity_id": "c6", "contact_number": "+91 90000 11111", "redirect_url": None},   # NOT_FLAGGED
+        {**base, "entity_id": "c7", "contact_number": None, "redirect_url": "http://bad.example/other"},
+    ]
+    status = {"c1": "FLAGGED", "c2": "FLAGGED", "c3": "FLAGGED", "c4": "FLAGGED", "c5": "FLAGGED", "c6": "NOT_FLAGGED", "c7": "FLAGGED"}
+    results = [{"entity_id": c["entity_id"], "status": status[c["entity_id"]]} for c in cands]
+    return results, cands
+
+def test_cluster_record_structure_ruling_25():
+    import re
+    cluster = pytest.importorskip("clustering").cluster
+    results, cands = _cluster_inputs()
+    snap = copy.deepcopy((results, cands))
+    out = cluster(results, cands)
+    assert (results, cands) == snap, "clustering mutated its inputs"
+    assert out == cluster(results, cands), "clustering must be deterministic"
+    seen, rings = set(), set()
+    for c in out:
+        assert set(c) >= RECORD_KEYS
+        assert re.fullmatch(r"ring_\d{3}", c["ring_id"]) and c["ring_id"] not in rings
+        rings.add(c["ring_id"])
+        assert isinstance(c["linked_candidate_ids"], list) and len(c["linked_candidate_ids"]) >= 2
+        assert c["linked_candidate_ids"] == sorted(c["linked_candidate_ids"])
+        assert not (seen & set(c["linked_candidate_ids"])), "a candidate is in two clusters"
+        seen |= set(c["linked_candidate_ids"])
+        assert c["link_reasons"], "every cluster needs at least one link reason"
+        for lr in c["link_reasons"]:
+            assert set(lr) >= {"candidate_id_1", "candidate_id_2", "indicator_type", "reason"}
+            assert lr["indicator_type"] in {"contact_number", "redirect_url"} and isinstance(lr["reason"], str) and lr["reason"]
+            assert lr["candidate_id_1"] in c["linked_candidate_ids"] and lr["candidate_id_2"] in c["linked_candidate_ids"]
+    groups = sorted(sorted(c["linked_candidate_ids"]) for c in out)
+    assert groups == [["c1", "c2"], ["c3", "c4"]], groups   # c5 (one digit off), c6 (not flagged), c7 (alone) stay out
+
+@pytest.mark.xfail(reason="Ruling 23 pending: needs last-10-digit normalization (remove this marker once it passes)", strict=False)
+def test_clustering_links_numbers_written_differently():
+    cluster = pytest.importorskip("clustering").cluster
+    results, cands = _cluster_inputs(phone_b="90000 11111")
+    groups = sorted(sorted(c["linked_candidate_ids"]) for c in cluster(results, cands))
+    assert ["c1", "c2"] in groups, groups
+
+def _publisher_signal(brand, publisher, package="com.thirdparty.x"):
+    app_engine = pytest.importorskip("app_engine")
+    cand = {"entity_id": "app_x", "target_type": "app_listing", "brand_id": "b", "platform": "Android",
+            "app_name": "Brand Helper", "package_id": package, "publisher": publisher, "description": None,
+            "contact_number": None, "redirect_url": None, "evidence_source": "simulated"}
+    return app_engine.evaluate(brand, cand)["signals"]["publisher_mismatch"]["value"]
+
+def test_publisher_mismatch_uses_official_plus_authorized_publishers():
+    """CONTRACT section 2 (ruling 26): mismatch is measured against the official publisher PLUS
+    authorized_publishers; if there are no authorized publishers, the official publisher alone counts."""
+    base = {"brand_id": "b", "name": "Brand", "official_handles": {}, "official_domains": [],
+            "official_apps": [{"platform": "Android", "package_id": "com.brand.app", "publisher": "Brand Ltd"}]}
+    with_auth = {**base, "authorized_publishers": ["Brand Partner Co"]}
+    assert _publisher_signal(base, "Brand Ltd") == 0.0, "official publisher must not count as a mismatch"
+    assert _publisher_signal(base, "Random Studio") == 1.0
+    assert _publisher_signal(with_auth, "Brand Ltd") == 0.0, "official publisher must still match when authorized list exists"
+    assert _publisher_signal(with_auth, "Brand Partner Co") == 0.0
+    assert _publisher_signal(with_auth, "Random Studio") == 1.0
+    assert _publisher_signal(with_auth, None) is None, "unknown publisher is null, never a mismatch"
+
+def test_report_accepts_real_cluster_records(combine, build):
+    """Ruling 25 + 22: the cluster module's records must pass the report builder's validation."""
+    cluster = pytest.importorskip("clustering").cluster
+    results, brand, cands, outs = sample_inputs(combine)
+    for c in cands:
+        c.update({"platform": "Instagram", "contact_number": "+91 90000 99999", "redirect_url": None})
+    flagged = [dict(r, status="FLAGGED") for r in results]
+    clusters = cluster(flagged, cands)
+    assert clusters, "expected one cluster (all share a number)"
+    build(results, brand, cands, outs, clusters)
+
 # ------------------------------------------------------------------ end to end (needs all real modules)
 def test_end_to_end_official_assets_never_flagged(social, apps, brands):
     se, ae, sc = (pytest.importorskip(m) for m in ("social_engine", "app_engine", "score_engine"))

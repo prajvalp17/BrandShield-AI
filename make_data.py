@@ -1,7 +1,10 @@
-"""Generates the SIMULATED starter dataset (v2: contact_number, redirect_url, expected_ring). 
+"""Generates the SIMULATED development dataset (v3: + official_descriptions, authorized_publishers). 
 Run: python make_data.py   — edit and extend freely."""
 import json
 from collections import Counter
+
+PARTNERS = {"brand_01": "Zenbank Payments Partner Ltd", "brand_02": "PayNest Merchant Services",
+            "brand_03": "QuickCart Delivery Partners"}
 
 BRANDS = [
  dict(brand_id="brand_01", name="Zenbank", h="zenbank", dom="zenbank.example", sw1="z3nbank", sw2="zembank",
@@ -23,6 +26,8 @@ registry = {"brands": [{
     "official_apps": [{"platform": "Android", "package_id": b["pkg"], "publisher": b["pub"]},
                       {"platform": "Android", "package_id": b["pkg2"], "publisher": b["pub"]}],
     "official_contact_numbers": [b["phone"]],
+    "official_descriptions": [f"Manage your {b['name']} account securely.", f"Companion app from {b['name']}."],
+    "authorized_publishers": [PARTNERS[b["brand_id"]]],
     "evidence_source": "simulated"} for b in BRANDS]}
 
 uniq = [20000]
@@ -71,9 +76,11 @@ for i, b in enumerate(BRANDS):
     add_app(b,f"{N} Insights" if h != "quickcart" else f"{N} Partner",b["pkg2"],b["pub"],f"Companion app from {N}.",P,f"https://{b['dom']}","official","second registered app")
     ringA = i < 2   # cross-platform link to the social Ring A
     add_app(b,f"{N} Rewards",f"com.{h}.rewards.apk","Fast Cash Apps",f"Login with your {N} card number to claim rewards.",
-            RING_A["phone"] if ringA else unique_phone(), RING_A["url"] if ringA else f"http://apk-{h}.example/get","impersonator",
-            "name match + publisher mismatch + credential bait" + (" (Ring A, cross-platform)" if ringA else ""), "ring_A" if ringA else None)
-    add_app(b,f"{N} Mobile Pro",f"com.{h}mobile.pro","Mobi Studio Co",f"The best way to use {N}. Same features as the official {N} app.",unique_phone(),None,"impersonator","copied description + similar package")
+            ("90000 11111" if i == 0 else RING_A["phone"]) if ringA else unique_phone(),
+            (f"http://apk-{h}.example/get" if i == 0 else RING_A["url"]) if ringA else f"http://apk-{h}.example/get","impersonator",
+            "name match + publisher mismatch + credential bait" + ((" (Ring A, cross-platform" + ("; linked by phone only, written without +91" if i == 0 else "") + ")") if ringA else ""), "ring_A" if ringA else None)
+    add_app(b,f"{N} Mobile Pro",f"com.{h}mobile.pro","Mobi Studio Co",f"Manage your {N} account securely and earn extra rewards.",unique_phone(),None,"impersonator","copied description + similar package")
+    add_app(b,f"{N} Partner Portal",f"com.{h}partner.portal",PARTNERS[b["brand_id"]],f"Portal for {N} authorized partners.",None,f"https://{b['dom']}","benign","authorized publisher: must NOT be flagged")
     add_app(b,f"{N} Calculator",f"com.calc.tools.{h}","Everyday Tools",f"Simple calculator. Not affiliated with {N}.",None,"https://everyday-tools.example","benign","unrelated utility mentioning brand")
 add_app(BRANDS[1],"Budget Tracker for PayNest Users","com.thirdparty.budgettrack","Ledger Labs","Track spending from your exported statements. Independent tool.",None,"https://ledgerlabs.example","benign","HARD: legit third-party tool using brand name")
 
