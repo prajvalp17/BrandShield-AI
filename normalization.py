@@ -1,6 +1,28 @@
 import unicodedata
 import re
 
+def normalize_text(value: object) -> str | None:
+    """Normalize text for case-insensitive comparisons."""
+    if value is None:
+        return None
+
+    text = unicodedata.normalize("NFKC", str(value))
+    text = " ".join(text.casefold().split())
+    return text or None
+
+
+def normalize_identifier(value: object) -> str | None:
+    """Normalize a handle or other identifier for exact comparisons."""
+    text = normalize_text(value)
+    if text is None:
+        return None
+
+    # Handles may be stored with or without one leading @.
+    if text.startswith("@"):
+        text = text[1:].strip()
+
+    return text or None
+
 def normalize_package_id(value: object) -> str | None:
     """Trim and standardize a package ID while preserving dots and hyphens."""
     if value is None:
