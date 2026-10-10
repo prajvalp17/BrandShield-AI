@@ -35,6 +35,13 @@ class SocialEngineTests(unittest.TestCase):
             set(result["signals"]),
             {"handle_similarity", "name_similarity", "scam_phrase", "account_age"},
         )
+    def test_new_scam_phrase_is_detected(self):
+        candidate = dict(self.candidate)
+        candidate["bio"] = "Please verify your identity immediately"
+
+        result = evaluate(self.brand, candidate)
+
+        self.assertEqual(result["signals"]["scam_phrase"]["value"], 1.0)
 
         for signal in result["signals"].values():
             self.assertIn(signal["category"], {"identity", "content", "metadata"})

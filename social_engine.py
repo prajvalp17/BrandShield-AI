@@ -19,6 +19,16 @@ SCAM_PHRASES = (
     "account suspended",
     "click the link",
     "send your password",
+    "verify your identity",
+    "confirm your account",
+    "account verification",
+    "reset your password",
+    "send us your password",
+    "claim your reward",
+    "you have won",
+    "free giveaway",
+    "urgent action required",
+    "dm to claim",
 )
 
 

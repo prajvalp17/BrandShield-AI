@@ -33,14 +33,16 @@ def normalize_package_id(value: object) -> str | None:
 
 
 def normalize_contact_number(value: object) -> str | None:
-    """Remove formatting from a phone number, keeping its digits."""
     if value is None:
         return None
 
     text = unicodedata.normalize("NFKC", str(value))
     digits = re.sub(r"\D", "", text)
-    return digits or None
 
+    if len(digits) < 10:
+        return None
+
+    return digits[-10:]
 
 def normalize_redirect_url(value: object) -> str | None:
     """Lowercase the URL's scheme and host while preserving its full path."""

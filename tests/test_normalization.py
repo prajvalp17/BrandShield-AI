@@ -26,7 +26,7 @@ class NormalizationTests(unittest.TestCase):
     def test_contact_number_removes_formatting(self):
         self.assertEqual(
             normalize_contact_number("+91 90000-11111"),
-            "919000011111",
+            "9000011111",
         )
 
     def test_redirect_url_preserves_full_path_and_query(self):
@@ -40,6 +40,8 @@ class NormalizationTests(unittest.TestCase):
         self.assertIsNone(normalize_contact_number(None))
         self.assertIsNone(normalize_redirect_url(None))
 
+    def test_short_contact_number_is_unknown(self):
+        self.assertIsNone(normalize_contact_number("12345"))
 
 if __name__ == "__main__":
     unittest.main()
