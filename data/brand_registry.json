@@ -1,0 +1,106 @@
+{
+  "brands": [
+    {
+      "brand_id": "brand_01",
+      "name": "Zenbank",
+      "official_handles": {
+        "Instagram": [
+          "@zenbank",
+          "@zenbank_support"
+        ],
+        "X": [
+          "@zenbank",
+          "@zenbank_care"
+        ]
+      },
+      "official_domains": [
+        "zenbank.example",
+        "support.zenbank.example"
+      ],
+      "official_apps": [
+        {
+          "platform": "Android",
+          "package_id": "com.zenbank.mobile",
+          "publisher": "Zenbank Ltd"
+        },
+        {
+          "platform": "Android",
+          "package_id": "com.zenbank.insights",
+          "publisher": "Zenbank Ltd"
+        }
+      ],
+      "official_contact_numbers": [
+        "+91 80000 10001"
+      ],
+      "evidence_source": "simulated"
+    },
+    {
+      "brand_id": "brand_02",
+      "name": "PayNest",
+      "official_handles": {
+        "Instagram": [
+          "@paynest",
+          "@paynest_support"
+        ],
+        "X": [
+          "@paynest",
+          "@paynest_care"
+        ]
+      },
+      "official_domains": [
+        "paynest.example",
+        "support.paynest.example"
+      ],
+      "official_apps": [
+        {
+          "platform": "Android",
+          "package_id": "com.paynest.wallet",
+          "publisher": "PayNest Technologies"
+        },
+        {
+          "platform": "Android",
+          "package_id": "com.paynest.business",
+          "publisher": "PayNest Technologies"
+        }
+      ],
+      "official_contact_numbers": [
+        "+91 80000 20001"
+      ],
+      "evidence_source": "simulated"
+    },
+    {
+      "brand_id": "brand_03",
+      "name": "QuickCart",
+      "official_handles": {
+        "Instagram": [
+          "@quickcart",
+          "@quickcart_support"
+        ],
+        "X": [
+          "@quickcart",
+          "@quickcart_care"
+        ]
+      },
+      "official_domains": [
+        "quickcart.example",
+        "support.quickcart.example"
+      ],
+      "official_apps": [
+        {
+          "platform": "Android",
+          "package_id": "com.quickcart.shop",
+          "publisher": "QuickCart Retail Pvt Ltd"
+        },
+        {
+          "platform": "Android",
+          "package_id": "com.quickcart.partner",
+          "publisher": "QuickCart Retail Pvt Ltd"
+        }
+      ],
+      "official_contact_numbers": [
+        "+91 80000 30001"
+      ],
+      "evidence_source": "simulated"
+    }
+  ]
+}
