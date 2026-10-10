@@ -139,7 +139,7 @@ def evaluate(brand: dict, candidate: dict) -> dict:
 
     official_apps = find_official_apps(brand, platform)
 
-    # Official packages are identified before scoring.
+    # Identify official packages before scoring.
     is_official = is_registered_official_package(
         package_id,
         official_apps,
@@ -222,40 +222,50 @@ def evaluate(brand: dict, candidate: dict) -> dict:
     # PUBLISHER METADATA SIGNAL — CONTRACT v0.8
     # --------------------------------------------------
 
-    # Optional registry field. Do not infer authorization from
-    # official_apps when authorized_publishers is unavailable.
+    # Official app publishers and authorized publishers are both allowed.
+    # If authorized_publishers is absent, official app publishers
+    # are still considered valid.
+
     authorized_publishers = brand.get("authorized_publishers") or []
 
     if not isinstance(authorized_publishers, (list, tuple)):
         authorized_publishers = []
 
     registered_publishers = {
+        normalize_text(app.get("publisher"))
+        for app in official_apps
+        if app.get("publisher")
+        and normalize_text(app.get("publisher"))
+    }
+
+    registered_publishers.update(
         normalize_text(item)
         for item in authorized_publishers
         if item and normalize_text(item)
-    }
+    )
 
     normalized_publisher = normalize_text(publisher)
 
     if not normalized_publisher or not registered_publishers:
         publisher_mismatch = None
         publisher_reason = (
-            "Publisher or authorized publisher information is unavailable."
+            "Publisher or registered publisher information is unavailable."
         )
     elif normalized_publisher in registered_publishers:
         publisher_mismatch = 0.0
         publisher_reason = (
-            "Publisher matches a registered authorized publisher."
+            "Publisher matches a registered official or authorized publisher."
         )
     else:
         publisher_mismatch = 1.0
         publisher_reason = (
-            "Publisher does not match a registered authorized publisher."
+            "Publisher does not match any registered official "
+            "or authorized publisher."
         )
 
     # --------------------------------------------------
     # SIGNALS
-    # Names and categories must match the contract.
+    # Signal names and categories are fixed by the contract.
     # --------------------------------------------------
 
     signals = {
