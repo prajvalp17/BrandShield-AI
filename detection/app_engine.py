@@ -3,26 +3,26 @@
 BrandShield AI - App Detection Engine
 Member 3: App Detection & Clustering
 
-Implements the CONTRACT.md engine interface:
+Contract interface:
     evaluate(brand: dict, candidate: dict) -> dict
 
-This engine produces explainable signals. It does not calculate the
-final risk score or status; score_engine.combine() owns those decisions.
-
-Normalization helpers in this file are temporary until Member 2's
-shared normalization module is available and its interfaces are confirmed.
+This engine produces explainable signals.
+Final risk scoring and status are handled by score_engine.combine().
 """
 
-import re
 import unicodedata
-from urllib.parse import urlsplit, urlunsplit
 
 from rapidfuzz import fuzz
 
+from normalization import (
+    normalize_package_id,
+    normalize_contact_number,
+    normalize_redirect_url,
+)
+
 
 # --------------------------------------------------
-# TEMPORARY NORMALIZATION HELPERS
-# Replace with Member 2's shared helpers when available.
+# TEXT NORMALIZATION
 # --------------------------------------------------
 
 def normalize_text(value):
@@ -32,80 +32,7 @@ def normalize_text(value):
 
     value = unicodedata.normalize("NFKC", str(value))
     value = value.casefold()
-    value = re.sub(r"\s+", " ", value)
-    return value.strip()
-
-
-def normalize_identifier(value):
-    """Provisional normalization for package identifiers."""
-    return normalize_text(value)
-
-
-def normalize_contact_number(value):
-    """
-    Provisional contact normalization.
-
-    Removes formatting characters but does not guess country codes or
-    discard digits. Replace with the agreed shared helper from Member 2.
-    """
-    if value is None or not str(value).strip():
-        return None
-
-    digits = re.sub(r"\D", "", str(value))
-    return digits or None
-
-
-def normalize_redirect_url(value):
-    """
-    Normalize URL scheme and hostname while preserving the full path,
-    query, and fragment. Domain-only matching is not performed.
-
-    Replace with Member 2's shared URL normalizer once available.
-    """
-    if value is None or not str(value).strip():
-        return None
-
-    raw = str(value).strip()
-
-    # Allow URLs supplied without an explicit scheme.
-    if "://" not in raw:
-        raw = "https://" + raw
-
-    try:
-        parsed = urlsplit(raw)
-
-        if not parsed.hostname:
-            return None
-
-        scheme = parsed.scheme.casefold()
-        hostname = parsed.hostname.casefold()
-
-        try:
-            port = parsed.port
-        except ValueError:
-            return None
-
-        if port is not None:
-            is_default_port = (
-                (scheme == "https" and port == 443)
-                or (scheme == "http" and port == 80)
-            )
-            if not is_default_port:
-                hostname = f"{hostname}:{port}"
-
-        # Preserve path, query, and fragment.
-        return urlunsplit(
-            (
-                scheme,
-                hostname,
-                parsed.path or "/",
-                parsed.query,
-                parsed.fragment,
-            )
-        )
-
-    except (ValueError, TypeError):
-        return None
+    return " ".join(value.split())
 
 
 # --------------------------------------------------
@@ -113,12 +40,7 @@ def normalize_redirect_url(value):
 # --------------------------------------------------
 
 def similarity(value_a, value_b):
-    """
-    Return normalized similarity from 0.0 to 1.0.
-
-    Return None if either input is missing. Similarity is a heuristic,
-    not a probability that an app is malicious.
-    """
+    """Return normalized similarity from 0.0 to 1.0, or None if missing."""
     a = normalize_text(value_a)
     b = normalize_text(value_b)
 
@@ -153,18 +75,7 @@ def make_signal(value, category, reason):
 # --------------------------------------------------
 
 def find_official_apps(brand, platform):
-    """
-    Return registered official app records for the candidate platform.
-
-    Contract registry format:
-        official_apps: [
-            {
-                "platform": "Android",
-                "package_id": "com.example.app",
-                "publisher": "Example Ltd"
-            }
-        ]
-    """
+    """Return registered official apps for the candidate platform."""
     official_apps = brand.get("official_apps") or []
 
     return [
@@ -177,18 +88,20 @@ def find_official_apps(brand, platform):
 
 def is_registered_official_package(package_id, official_apps):
     """Check for an exact normalized registered package ID."""
-    normalized_package = normalize_identifier(package_id)
+    normalized_package = normalize_package_id(package_id)
 
     if not normalized_package:
         return False
 
     for official_app in official_apps:
-        registered_package = official_app.get("package_id")
+        registered_package = normalize_package_id(
+            official_app.get("package_id")
+        )
 
-        if not registered_package:
-            continue
-
-        if normalized_package == normalize_identifier(registered_package):
+        if (
+            registered_package is not None
+            and normalized_package == registered_package
+        ):
             return True
 
     return False
@@ -202,12 +115,8 @@ def evaluate(brand: dict, candidate: dict) -> dict:
     """
     Evaluate an app listing against a brand registry entry.
 
-    Required output fields:
-        entity_id, target_type, platform, identifier,
-        is_official, exclusion_reason, signals, evidence_source,
-        evidence_timestamp, indicators, evidence
-
-    The final risk score and status are calculated by Member 4.
+    Returns explainable signals, evidence and normalized clustering
+    indicators. Does not calculate the final risk score or status.
     """
 
     entity_id = candidate.get("entity_id")
@@ -219,7 +128,7 @@ def evaluate(brand: dict, candidate: dict) -> dict:
 
     official_apps = find_official_apps(brand, platform)
 
-    # Official matching happens before scoring.
+    # Official matching takes priority over risk scoring.
     is_official = is_registered_official_package(
         package_id,
         official_apps,
@@ -231,10 +140,7 @@ def evaluate(brand: dict, candidate: dict) -> dict:
         else None
     )
 
-    # --------------------------------------------------
     # Identity signals
-    # --------------------------------------------------
-
     app_name_similarity = similarity(
         app_name,
         brand.get("name"),
@@ -251,10 +157,7 @@ def evaluate(brand: dict, candidate: dict) -> dict:
         official_package_ids,
     )
 
-    # --------------------------------------------------
     # Content signals
-    # --------------------------------------------------
-
     official_descriptions = brand.get("official_descriptions") or []
 
     description_similarity = best_similarity(
@@ -287,17 +190,17 @@ def evaluate(brand: dict, candidate: dict) -> dict:
 
         credential_bait = 1.0 if found_phrases else 0.0
 
-        credential_bait_reason = (
-            "Description contains configured credential-related phrases: "
-            + ", ".join(found_phrases)
-            if found_phrases
-            else "No configured credential-bait phrase detected."
-        )
+        if found_phrases:
+            credential_bait_reason = (
+                "Description contains configured credential-related phrases: "
+                + ", ".join(found_phrases)
+            )
+        else:
+            credential_bait_reason = (
+                "No configured credential-bait phrase detected."
+            )
 
-    # --------------------------------------------------
     # Publisher metadata signal
-    # --------------------------------------------------
-
     registered_publishers = {
         normalize_text(item.get("publisher"))
         for item in official_apps
@@ -313,17 +216,16 @@ def evaluate(brand: dict, candidate: dict) -> dict:
         )
     elif normalized_publisher in registered_publishers:
         publisher_mismatch = 0.0
-        publisher_reason = "Publisher matches a registered official publisher."
+        publisher_reason = (
+            "Publisher matches a registered official publisher."
+        )
     else:
         publisher_mismatch = 1.0
         publisher_reason = (
             "Publisher does not match a registered official publisher."
         )
 
-    # --------------------------------------------------
-    # Signals: names and categories must match CONTRACT.md
-    # --------------------------------------------------
-
+    # Contract-defined signals
     signals = {
         "app_name_similarity": make_signal(
             app_name_similarity,
@@ -364,7 +266,7 @@ def evaluate(brand: dict, candidate: dict) -> dict:
         ),
     }
 
-    # Evidence is for downstream reporting, not a final risk score.
+    # Evidence for downstream reporting
     evidence = {
         "app_name": app_name,
         "package_id": package_id,
@@ -400,30 +302,20 @@ def evaluate(brand: dict, candidate: dict) -> dict:
 # --------------------------------------------------
 
 def detect_app(app, brand):
-    """
-    Legacy interface retained temporarily for older tests or callers.
-
-    New contract integrations must use evaluate(brand, candidate).
-    This wrapper is not the team's final scoring implementation.
-    """
+    """Compatibility wrapper for older callers."""
     candidate = dict(app)
 
-    # Translate the old field names into contract field names.
     if "entity_id" not in candidate:
         candidate["entity_id"] = candidate.get("app_id")
 
     if "app_name" not in candidate:
         candidate["app_name"] = candidate.get("name")
 
-    if "target_type" not in candidate:
-        candidate["target_type"] = "app_listing"
-
-    if "evidence_source" not in candidate:
-        candidate["evidence_source"] = "simulated"
+    candidate.setdefault("target_type", "app_listing")
+    candidate.setdefault("evidence_source", "simulated")
 
     engine_output = evaluate(brand, candidate)
 
-    # Compatibility summary only. Do not use this for the new evaluator.
     legacy_signals = {
         name: record["value"]
         for name, record in engine_output["signals"].items()
