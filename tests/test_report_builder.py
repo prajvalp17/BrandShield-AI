@@ -1,3 +1,5 @@
+import pytest
+
 from report_builder import build_report
 
 
@@ -148,7 +150,7 @@ def test_build_report_preserves_link_reasons_and_ring_assignment():
     assert report["results"][2]["ring_id"] == "ring_02"
 
 
-def test_build_report_keeps_unassigned_results_none_and_ignores_malformed_clusters():
+def test_build_report_keeps_unassigned_results_none_for_valid_clusters():
     results = [
         {"entity_id": "soc_01", "target_type": "social_profile", "platform": "Instagram", "identifier": "@alpha", "risk_score": 0.1, "status": "NOT_FLAGGED", "is_official": False, "signals": {}, "reasons": [], "exclusion_reason": None, "review_required": False, "evidence_source": "simulated", "evidence_timestamp": None, "ring_id": None},
         {"entity_id": "soc_02", "target_type": "social_profile", "platform": "Instagram", "identifier": "@beta", "risk_score": 0.2, "status": "NOT_FLAGGED", "is_official": False, "signals": {}, "reasons": [], "exclusion_reason": None, "review_required": False, "evidence_source": "simulated", "evidence_timestamp": None, "ring_id": None},
@@ -162,12 +164,7 @@ def test_build_report_keeps_unassigned_results_none_and_ignores_malformed_cluste
         {"entity_id": "soc_01", "evidence": {}},
         {"entity_id": "soc_02", "evidence": {}},
     ]
-    clusters = [
-        {"ring_id": "ring_01", "linked_candidate_ids": ["soc_99"]},
-        {"ring_id": None, "linked_candidate_ids": ["soc_02"]},
-        123,
-        {"linked_candidate_ids": ["soc_01"]},
-    ]
+    clusters = [{"ring_id": "ring_01", "linked_candidate_ids": ["soc_99"]}]
 
     report = build_report(results, brand, candidates, engine_outputs, clusters)
 
@@ -175,6 +172,55 @@ def test_build_report_keeps_unassigned_results_none_and_ignores_malformed_cluste
     assert report["clusters"][0]["ring_id"] == "ring_01"
     assert report["results"][0]["ring_id"] is None
     assert report["results"][1]["ring_id"] is None
+
+
+def test_build_report_rejects_candidate_in_multiple_clusters():
+    clusters = [
+        {"ring_id": "ring_01", "linked_candidate_ids": ["soc_01"]},
+        {"ring_id": "ring_02", "linked_candidate_ids": ["soc_01"]},
+    ]
+
+    with pytest.raises(ValueError, match="soc_01"):
+        build_report([], {}, [], [], clusters)
+
+
+def test_build_report_rejects_duplicate_ring_ids():
+    clusters = [
+        {"ring_id": "ring_01", "linked_candidate_ids": ["soc_01"]},
+        {"ring_id": "ring_01", "linked_candidate_ids": ["soc_02"]},
+    ]
+
+    with pytest.raises(ValueError, match="ring_01"):
+        build_report([], {}, [], [], clusters)
+
+
+def test_build_report_rejects_cluster_missing_ring_id():
+    with pytest.raises(ValueError, match="ring_id"):
+        build_report([], {}, [], [], [{"linked_candidate_ids": ["soc_01"]}])
+
+
+def test_build_report_rejects_cluster_missing_linked_candidate_ids():
+    with pytest.raises(ValueError, match="linked_candidate_ids"):
+        build_report([], {}, [], [], [{"ring_id": "ring_01"}])
+
+
+@pytest.mark.parametrize("cluster", [
+    123,
+    {"ring_id": "ring_01", "linked_candidate_ids": None},
+])
+def test_build_report_rejects_malformed_cluster_records(cluster):
+    with pytest.raises(ValueError):
+        build_report([], {}, [], [], [cluster])
+
+
+def test_build_report_allows_repeated_candidate_ids_within_one_cluster():
+    result = {"entity_id": "soc_01", "signals": {}, "reasons": [], "ring_id": None}
+    clusters = [{"ring_id": "ring_01", "linked_candidate_ids": ["soc_01", "soc_01"]}]
+
+    report = build_report([result], {}, [], [], clusters)
+
+    assert report["results"][0]["ring_id"] == "ring_01"
+    assert report["clusters"][0]["linked_candidate_ids"] == ["soc_01", "soc_01"]
 
 
 def test_build_report_does_not_mutate_input_results_or_candidates():
@@ -186,8 +232,8 @@ def test_build_report_does_not_mutate_input_results_or_candidates():
         "risk_score": 0.2,
         "status": "NOT_FLAGGED",
         "is_official": False,
-        "signals": {},
-        "reasons": [],
+        "signals": {"detail": {"values": ["original"]}},
+        "reasons": [{"detail": ["original"]}],
         "exclusion_reason": None,
         "review_required": False,
         "evidence_source": "simulated",
@@ -199,8 +245,12 @@ def test_build_report_does_not_mutate_input_results_or_candidates():
     engine_outputs = [{"entity_id": "soc_03", "evidence": {"k": "v"}}]
 
     report = build_report(results, {"brand_id": "brand_04", "name": "Brand Four"}, candidates, engine_outputs)
+    report["results"][0]["signals"]["detail"]["values"].append("report")
+    report["results"][0]["reasons"][0]["detail"].append("report")
 
     assert results[0] == original_result
+    assert results[0]["signals"]["detail"]["values"] == ["original"]
+    assert results[0]["reasons"][0]["detail"] == ["original"]
     assert report["results"][0]["label"] == "Gamma"
     assert report["results"][0]["evidence"] == {"k": "v"}
     assert "label" not in results[0]

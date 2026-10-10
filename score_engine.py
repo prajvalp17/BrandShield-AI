@@ -9,6 +9,17 @@ WEIGHTS = {
 
 ACTIVE_THRESHOLD = 0.60
 FLAG_THRESHOLD = 0.70
+REQUIRED_INPUT_FIELDS = (
+    "entity_id",
+    "target_type",
+    "platform",
+    "identifier",
+    "is_official",
+    "exclusion_reason",
+    "signals",
+    "evidence_source",
+    "evidence_timestamp",
+)
 
 
 def _coerce_signal_value(name: str, value: Any) -> float | None:
@@ -46,6 +57,10 @@ def combine(engine_output: dict) -> dict:
     if not isinstance(engine_output, dict):
         raise TypeError("engine_output must be a dict")
 
+    missing_fields = [field for field in REQUIRED_INPUT_FIELDS if field not in engine_output]
+    if missing_fields:
+        raise ValueError(f"engine_output is missing required fields: {', '.join(missing_fields)}")
+
     is_official = bool(engine_output.get("is_official", False))
     if is_official:
         result = _base_result(engine_output, is_official=True)
@@ -55,7 +70,7 @@ def combine(engine_output: dict) -> dict:
         result["risk_score"] = 0.0
         return result
 
-    signals = engine_output.get("signals") or {}
+    signals = engine_output["signals"]
     if not isinstance(signals, dict):
         raise TypeError("signals must be a mapping of signal names to {value, category, reason}")
 
@@ -70,8 +85,8 @@ def combine(engine_output: dict) -> dict:
         if not isinstance(signal_record, dict):
             raise TypeError(f"{signal_name} signal definition must be a dict")
         category = signal_record.get("category")
-        if category not in WEIGHTS:
-            continue
+        if not isinstance(category, str) or category not in WEIGHTS:
+            raise ValueError(f"{signal_name} signal category must be identity, content, or metadata")
         value = _coerce_signal_value(signal_name, signal_record.get("value"))
         if value is None:
             continue

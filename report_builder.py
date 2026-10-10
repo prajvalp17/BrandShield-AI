@@ -18,15 +18,37 @@ def _sorted_clusters(clusters: list[dict[str, Any]] | None) -> list[dict[str, An
         return []
 
     normalized: list[dict[str, Any]] = []
-    for cluster in clusters:
+    seen_ring_ids: list[Any] = []
+    candidate_cluster: dict[str, int] = {}
+    for cluster_index, cluster in enumerate(clusters):
         if not isinstance(cluster, dict):
-            continue
-        ring_id = cluster.get("ring_id")
-        linked = cluster.get("linked_candidate_ids")
-        if ring_id is None or not isinstance(linked, list):
-            continue
+            raise ValueError(f"cluster at index {cluster_index} must be a mapping")
+        if "ring_id" not in cluster or cluster["ring_id"] is None:
+            raise ValueError(f"cluster at index {cluster_index} is missing ring_id")
+        ring_id = cluster["ring_id"]
+        if any(ring_id == seen_ring_id for seen_ring_id in seen_ring_ids):
+            raise ValueError(f"duplicate ring_id {ring_id!r}")
+        seen_ring_ids.append(ring_id)
+
+        if "linked_candidate_ids" not in cluster:
+            raise ValueError(f"cluster {ring_id!r} is missing linked_candidate_ids")
+        linked = cluster["linked_candidate_ids"]
+        if not isinstance(linked, list):
+            raise ValueError(f"cluster {ring_id!r} linked_candidate_ids must be a list")
+
+        normalized_linked: list[str] = []
+        for entity_id in linked:
+            if entity_id is None:
+                raise ValueError(f"cluster {ring_id!r} contains a missing candidate ID")
+            candidate_id = str(entity_id)
+            previous_cluster = candidate_cluster.get(candidate_id)
+            if previous_cluster is not None and previous_cluster != cluster_index:
+                raise ValueError(f"candidate ID {candidate_id!r} appears in multiple clusters")
+            candidate_cluster[candidate_id] = cluster_index
+            normalized_linked.append(candidate_id)
+
         cleaned = deepcopy(cluster)
-        cleaned["linked_candidate_ids"] = [str(entity_id) for entity_id in linked if entity_id is not None]
+        cleaned["linked_candidate_ids"] = normalized_linked
         normalized.append(cleaned)
 
     return sorted(
@@ -75,7 +97,7 @@ def build_report(
     for result in sorted(results or [], key=lambda item: str(item.get("entity_id") if isinstance(item, dict) else "")):
         if not isinstance(result, dict):
             continue
-        report_result = dict(result)
+        report_result = deepcopy(result)
         entity_id = result.get("entity_id")
         candidate = candidate_by_id.get(str(entity_id)) if entity_id is not None else None
         report_result["label"] = _safe_label(candidate, candidate.get("target_type") if isinstance(candidate, dict) else None)

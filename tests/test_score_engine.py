@@ -48,6 +48,32 @@ def test_null_signal_values_are_ignored():
     assert result["review_required"] is False
 
 
+@pytest.mark.parametrize("field", [
+    "entity_id",
+    "target_type",
+    "platform",
+    "identifier",
+    "is_official",
+    "exclusion_reason",
+    "signals",
+    "evidence_source",
+    "evidence_timestamp",
+])
+def test_missing_required_input_field_raises(field):
+    engine_output = build_output()
+    del engine_output[field]
+
+    with pytest.raises(ValueError, match="required"):
+        combine(engine_output)
+
+
+def test_unknown_signal_category_raises():
+    with pytest.raises(ValueError, match="category"):
+        combine(build_output(signals={
+            "handle_similarity": {"value": 0.8, "category": "reputation", "reason": "unknown category"},
+        }))
+
+
 def test_two_active_categories_flag_at_threshold():
     result = combine(build_output(signals={
         "handle_similarity": {"value": 0.90, "category": "identity", "reason": "very similar"},
