@@ -183,13 +183,3 @@ def cluster(results: list[dict], candidates: list[dict]) -> list[dict]:
     return clusters
 
 
-def find_suspicious_clusters(results: list[dict],
-                             candidates: list[dict]) -> list[dict]:
-    """Descriptive alias for the contract's cluster() function."""
-    return cluster(results, candidates)
-
-
-def detect_clusters(results: list[dict],
-                    candidates: list[dict]) -> list[dict]:
-    """Compatibility alias for callers using detect_clusters()."""
-    return cluster(results, candidates)
