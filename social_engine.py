@@ -29,6 +29,16 @@ SCAM_PHRASES = (
     "free giveaway",
     "urgent action required",
     "dm to claim",
+    "send payment",
+    "make a payment",
+    "payment required",
+    "send your otp",
+    "share your otp",
+    "send the verification code",
+    "share the verification code",
+    "pay a processing fee",
+    "processing fee",
+    "pay a release fee",
 )
 
 

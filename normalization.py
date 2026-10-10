@@ -45,17 +45,7 @@ def normalize_contact_number(value: object) -> str | None:
 
     return digits[-10:]
 
-def normalize_contact_number(value):
-    """Keep digits only and retain the last 10 digits."""
-    if value is None or not str(value).strip():
-        return None
 
-    digits = "".join(
-        character for character in str(value)
-        if character.isdigit()
-    )
-
-    return digits[-10:] or None
 
 
     if len(digits) < 10:
