@@ -1,5 +1,5 @@
 # CONTRACT.md — BrandShield AI
-**Version:** 0.8.1-RULED  |  **Owner / tie-breaker:** Member 1  |  **Status:** SIGNED by Members 1, 2, 3, 4 and 5 (v0.8, hour 18); rulings below are in effect
+**Version:** 0.8.2-RULED  |  **Owner / tie-breaker:** Member 1  |  **Status:** SIGNED by Members 1, 2, 3, 4 and 5 (v0.8, hour 18); rulings below are in effect
 Single source of truth for schemas and interfaces. If anything elsewhere disagrees, this file wins.
 Rulings are recorded in section 9. Anything still marked **[OPEN]** must be closed by the date stated next to it (default: the H0–2 session).
 
@@ -75,7 +75,7 @@ clustering.cluster(results: list[dict], candidates: list[dict]) -> list[dict]   
 
 ### Normalization (shared utility, Member 2; ruling 23)
 - `normalize_contact_number`: keep digits only; if there are 10 or more digits keep the **last 10**; otherwise `None`. So `+91 90000 11111`, `90000 11111` and `090000-11111` all become `9000011111`, while numbers one digit apart stay different.
-- `normalize_redirect_url`: full URL compared (not just the domain). **[OPEN, Member 2, before H6]** whether a trailing slash is ignored (`/a/` equals `/a`); proposal: yes.
+- `normalize_redirect_url`: full URL compared (not just the domain). A trailing slash is **preserved**: `/a/` and `/a` are different URLs (ruling 28).
 
 `account_age` mapping (Member 2 supplies, defaults): ≤14 days → 0.9; ≤90 days → 0.5; older → 0.0; unknown → `null`.
 
@@ -199,11 +199,12 @@ Counted separately: official-asset false positive (official FLAGGED), benign fal
 | 20 | Repo layout (M3) | All modules at the repo root as in the roadmap (`social_engine.py`, `app_engine.py`, `score_engine.py`, `report_builder.py`, `normalization.py`, `clustering.py`). Member 3 to move `detection/app_engine.py`. |
 | 21 | Report builder copies (M4) | Deep copy; the report shares no objects with its inputs (section 6) |
 | 22 | Candidate in several clusters (M4) | Reject: `build_report` raises `ValueError` on overlapping clusters, duplicate `ring_id`, or malformed clusters (section 6). Chosen over "last wins" because that silently shows a wrong ring in an evidence report. |
-| 23 | Contact number format (M2, M3) | Digits only, last 10 digits when there are 10 or more, else `None` (section 3). Trailing-slash handling for URLs is [OPEN] for Member 2. |
+| 23 | Contact number format (M2, M3) | Digits only, last 10 digits when there are 10 or more, else `None` (section 3). Trailing-slash handling for URLs: see ruling 28. |
 | 24 | Official descriptions (M3) | Optional `official_descriptions[]` in the registry; absent means `description_similarity` is `null` (section 2) |
 | 25 | Cluster record structure (M3) | Section 7, as built by Member 3 |
 | 26 | Authorized publishers (M3, M4) | Optional `authorized_publishers[]`; `publisher_mismatch` measured against official plus authorized (section 2) |
 | 27 | Scoring rule for strong identity plus verified publisher mismatch without content evidence (M4) | **CLOSED, no change.** Formula unchanged. A strong name match with a publisher mismatch does not, by itself, guarantee FLAGGED. When the content category has a low non-null value, such candidates score in the 0.50 to 0.70 band and come out NOT_FLAGGED with `review_required` = true, so a human sees them. Changing the formula risks false positives on legitimate third-party apps and cannot be judged fairly on the hold-out set, which must stay unseen. **Known limitation: it must be stated clearly in the evaluation documentation and on the slide** (condition set by Members 2, 3, 4 and 5, who raised no objection at hour 18). Member 5's added condition: the UI keeps displaying the engine's final outputs and never overrides them. |
+| 28 | Trailing slash in `normalize_redirect_url` (M2) | **Preserved**: `/a/` and `/a` are different URLs; the path is kept as given, and only the scheme and host are lowercased. Decided by Member 1 as tie-breaker, accepting Member 2's implementation over the earlier proposal to ignore it. Reason: clustering links only on an exact full-URL match, so a missed link is safer than a false connection, and the development data has no URLs that differ only by a trailing slash. Implemented in `normalization.py` with `test_redirect_url_preserves_trailing_slash`. |
 
 ## 10. Sign-off
 | Member | Role | Signed (name, hour) |
