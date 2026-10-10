@@ -1,0 +1,3 @@
+def combine(signals: dict) -> dict:
+    """Combine detection signals into a final risk result."""
+    ...
