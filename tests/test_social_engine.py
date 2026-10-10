@@ -35,6 +35,13 @@ class SocialEngineTests(unittest.TestCase):
             set(result["signals"]),
             {"handle_similarity", "name_similarity", "scam_phrase", "account_age"},
         )
+    def test_new_scam_phrase_is_detected(self):
+        candidate = dict(self.candidate)
+        candidate["bio"] = "Please verify your identity immediately"
+
+        result = evaluate(self.brand, candidate)
+
+        self.assertEqual(result["signals"]["scam_phrase"]["value"], 1.0)
 
         for signal in result["signals"].values():
             self.assertIn(signal["category"], {"identity", "content", "metadata"})
@@ -42,6 +49,17 @@ class SocialEngineTests(unittest.TestCase):
                 signal["value"] is None
                 or 0.0 <= signal["value"] <= 1.0
             )
+    def test_payment_otp_and_fee_phrases_are_detected(self):
+        for phrase in (
+            "send payment",
+            "share your otp",
+            "pay a processing fee",
+        ):
+            with self.subTest(phrase=phrase):
+                candidate = dict(self.candidate)
+                candidate["bio"] = phrase
+                result = evaluate(self.brand, candidate)
+                self.assertEqual(result["signals"]["scam_phrase"]["value"], 1.0)
 
     def test_exact_official_handle_is_excluded(self):
         candidate = dict(self.candidate)
