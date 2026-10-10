@@ -32,12 +32,31 @@ def normalize_package_id(value: object) -> str | None:
     return package_id or None
 
 
+
 def normalize_contact_number(value: object) -> str | None:
     if value is None:
         return None
 
     text = unicodedata.normalize("NFKC", str(value))
     digits = re.sub(r"\D", "", text)
+
+    if len(digits) < 10:
+        return None
+
+    return digits[-10:]
+
+def normalize_contact_number(value):
+    """Keep digits only and retain the last 10 digits."""
+    if value is None or not str(value).strip():
+        return None
+
+    digits = "".join(
+        character for character in str(value)
+        if character.isdigit()
+    )
+
+    return digits[-10:] or None
+
 
     if len(digits) < 10:
         return None
