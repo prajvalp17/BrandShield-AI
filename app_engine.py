@@ -50,6 +50,9 @@ def similarity(value_a, value_b):
 
 def best_similarity(value, official_values):
     """Return the highest similarity to available official values."""
+    if not isinstance(official_values, (list, tuple)):
+        return None
+
     scores = [
         similarity(value, official_value)
         for official_value in official_values
@@ -60,7 +63,7 @@ def best_similarity(value, official_values):
 
 
 def make_signal(value, category, reason):
-    """Create a signal record following CONTRACT v0.7."""
+    """Create a signal record following the contract."""
     return {
         "value": value,
         "category": category,
@@ -76,6 +79,9 @@ def find_official_apps(brand, platform):
     """Return registered official apps for the candidate platform."""
     official_apps = brand.get("official_apps") or []
 
+    if not isinstance(official_apps, list):
+        return []
+
     return [
         app
         for app in official_apps
@@ -87,8 +93,7 @@ def find_official_apps(brand, platform):
 def is_registered_official_package(package_id, official_apps):
     """
     Check for an exact normalized package ID match.
-
-    Platform filtering is performed by find_official_apps() first.
+    Platform filtering is performed before this function is called.
     """
     normalized_package = normalize_package_id(package_id)
 
@@ -122,7 +127,7 @@ def evaluate(brand: dict, candidate: dict) -> dict:
         is_official, exclusion_reason, signals,
         evidence_source, evidence_timestamp, indicators, evidence.
 
-    This function does not calculate a final risk score or status.
+    This function does not calculate the final risk score or status.
     """
 
     entity_id = candidate.get("entity_id")
@@ -146,7 +151,10 @@ def evaluate(brand: dict, candidate: dict) -> dict:
         else None
     )
 
-    # Identity signals
+    # --------------------------------------------------
+    # IDENTITY SIGNALS
+    # --------------------------------------------------
+
     app_name_similarity = similarity(
         app_name,
         brand.get("name"),
@@ -163,9 +171,11 @@ def evaluate(brand: dict, candidate: dict) -> dict:
         official_package_ids,
     )
 
-    # Content signals
-    # official_descriptions is optional; it is not a required field
-    # in the frozen brand-registry schema.
+    # --------------------------------------------------
+    # CONTENT SIGNALS
+    # --------------------------------------------------
+
+    # Optional registry field introduced in contract v0.8.
     official_descriptions = brand.get("official_descriptions") or []
 
     description_similarity = best_similarity(
@@ -208,11 +218,21 @@ def evaluate(brand: dict, candidate: dict) -> dict:
                 "No configured credential-bait phrase detected."
             )
 
-    # Publisher metadata signal
+    # --------------------------------------------------
+    # PUBLISHER METADATA SIGNAL — CONTRACT v0.8
+    # --------------------------------------------------
+
+    # Optional registry field. Do not infer authorization from
+    # official_apps when authorized_publishers is unavailable.
+    authorized_publishers = brand.get("authorized_publishers") or []
+
+    if not isinstance(authorized_publishers, (list, tuple)):
+        authorized_publishers = []
+
     registered_publishers = {
-        normalize_text(app.get("publisher"))
-        for app in official_apps
-        if app.get("publisher")
+        normalize_text(item)
+        for item in authorized_publishers
+        if item and normalize_text(item)
     }
 
     normalized_publisher = normalize_text(publisher)
@@ -220,20 +240,24 @@ def evaluate(brand: dict, candidate: dict) -> dict:
     if not normalized_publisher or not registered_publishers:
         publisher_mismatch = None
         publisher_reason = (
-            "Publisher or registered publisher information is unavailable."
+            "Publisher or authorized publisher information is unavailable."
         )
     elif normalized_publisher in registered_publishers:
         publisher_mismatch = 0.0
         publisher_reason = (
-            "Publisher matches a registered official publisher."
+            "Publisher matches a registered authorized publisher."
         )
     else:
         publisher_mismatch = 1.0
         publisher_reason = (
-            "Publisher does not match a registered official publisher."
+            "Publisher does not match a registered authorized publisher."
         )
 
-    # Signal names and categories are fixed by the contract.
+    # --------------------------------------------------
+    # SIGNALS
+    # Names and categories must match the contract.
+    # --------------------------------------------------
+
     signals = {
         "app_name_similarity": make_signal(
             app_name_similarity,
@@ -274,6 +298,7 @@ def evaluate(brand: dict, candidate: dict) -> dict:
         ),
     }
 
+    # Evidence is for downstream reporting, not a final risk score.
     evidence = {
         "app_name": app_name,
         "package_id": package_id,

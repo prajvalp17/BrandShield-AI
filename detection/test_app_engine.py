@@ -133,7 +133,7 @@ def test_contact_and_full_url_are_indicators_not_signals():
 
     result = evaluate(brand, candidate)
 
-    assert result["indicators"]["contact_number"] == "18005550100"
+    assert result["indicators"]["contact_number"] == "8005550100"
     assert result["indicators"]["redirect_url"] == (
         "https://example.com/login?next=account"
     )
