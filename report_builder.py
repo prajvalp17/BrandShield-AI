@@ -16,8 +16,21 @@ def _safe_label(candidate: dict[str, Any] | None, target_type: str | None) -> An
 def _sorted_clusters(clusters: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
     if not clusters:
         return []
+
+    normalized: list[dict[str, Any]] = []
+    for cluster in clusters:
+        if not isinstance(cluster, dict):
+            continue
+        ring_id = cluster.get("ring_id")
+        linked = cluster.get("linked_candidate_ids")
+        if ring_id is None or not isinstance(linked, list):
+            continue
+        cleaned = dict(cluster)
+        cleaned["linked_candidate_ids"] = [str(entity_id) for entity_id in linked if entity_id is not None]
+        normalized.append(cleaned)
+
     return sorted(
-        [dict(cluster) for cluster in clusters if isinstance(cluster, dict)],
+        normalized,
         key=lambda cluster: (
             cluster.get("ring_id") is None,
             str(cluster.get("ring_id") if cluster.get("ring_id") is not None else ""),
