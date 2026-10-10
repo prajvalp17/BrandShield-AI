@@ -404,7 +404,7 @@ def test_cluster_record_structure_ruling_25():
     groups = sorted(sorted(c["linked_candidate_ids"]) for c in out)
     assert groups == [["c1", "c2"], ["c3", "c4"]], groups   # c5 (one digit off), c6 (not flagged), c7 (alone) stay out
 
-@pytest.mark.xfail(reason="Ruling 23 pending: needs last-10-digit normalization (remove this marker once it passes)", strict=False)
+
 def test_clustering_links_numbers_written_differently():
     cluster = pytest.importorskip("clustering").cluster
     results, cands = _cluster_inputs(phone_b="90000 11111")
