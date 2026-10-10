@@ -32,18 +32,26 @@ def normalize_package_id(value: object) -> str | None:
     return package_id or None
 
 
-def normalize_contact_number(value):
-    """Keep digits only and retain the last 10 digits."""
-    if value is None or not str(value).strip():
+
+def normalize_contact_number(value: object) -> str | None:
+    if value is None:
         return None
 
-    digits = "".join(
-        character for character in str(value)
-        if character.isdigit()
-    )
+    text = unicodedata.normalize("NFKC", str(value))
+    digits = re.sub(r"\D", "", text)
 
-    return digits[-10:] or None
+    if len(digits) < 10:
+        return None
 
+    return digits[-10:]
+
+
+
+
+    if len(digits) < 10:
+        return None
+
+    return digits[-10:]
 
 def normalize_redirect_url(value: object) -> str | None:
     """Lowercase the URL's scheme and host while preserving its full path."""
