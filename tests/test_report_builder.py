@@ -1,5 +1,6 @@
 import pytest
 
+from clustering import cluster
 from report_builder import build_report
 
 
@@ -38,6 +39,83 @@ def _sample_results():
             "ring_id": None,
         },
     ]
+
+
+def _valid_cluster_inputs():
+    entity_ids = ("c1", "c2", "c3", "c4")
+    results = [
+        {
+            "entity_id": entity_id,
+            "target_type": "social_profile",
+            "platform": "X",
+            "identifier": f"@{entity_id}",
+            "risk_score": 0.9,
+            "status": "FLAGGED",
+            "is_official": False,
+            "signals": {},
+            "reasons": [],
+            "exclusion_reason": None,
+            "review_required": False,
+            "evidence_source": "simulated",
+            "evidence_timestamp": None,
+            "ring_id": None,
+        }
+        for entity_id in entity_ids
+    ]
+    candidates = [
+        {
+            "entity_id": "c1",
+            "target_type": "social_profile",
+            "platform": "X",
+            "brand_id": "brand_01",
+            "evidence_source": "simulated",
+            "display_name": "Candidate 1",
+            "contact_number": "+91 90000 11111",
+            "redirect_url": None,
+        },
+        {
+            "entity_id": "c2",
+            "target_type": "social_profile",
+            "platform": "X",
+            "brand_id": "brand_01",
+            "evidence_source": "simulated",
+            "display_name": "Candidate 2",
+            "contact_number": "90000 11111",
+            "redirect_url": None,
+        },
+        {
+            "entity_id": "c3",
+            "target_type": "social_profile",
+            "platform": "X",
+            "brand_id": "brand_01",
+            "evidence_source": "simulated",
+            "display_name": "Candidate 3",
+            "contact_number": None,
+            "redirect_url": "http://bad.example/pay",
+        },
+        {
+            "entity_id": "c4",
+            "target_type": "social_profile",
+            "platform": "X",
+            "brand_id": "brand_01",
+            "evidence_source": "simulated",
+            "display_name": "Candidate 4",
+            "contact_number": None,
+            "redirect_url": "http://bad.example/pay",
+        },
+    ]
+    engine_outputs = [
+        {"entity_id": entity_id, "evidence": {"source": entity_id}}
+        for entity_id in entity_ids
+    ]
+    clusters = cluster(results, candidates)
+    return (
+        results,
+        {"brand_id": "brand_01", "name": "Brand One"},
+        candidates,
+        engine_outputs,
+        clusters,
+    )
 
 
 def test_build_report_uses_exact_top_level_keys_and_preserves_frozen_result_fields():
@@ -94,60 +172,42 @@ def test_build_report_uses_app_label_and_engine_evidence_by_entity_id():
 
 
 def test_build_report_sets_ring_id_from_clusters_and_sorts_deterministically():
-    results = [
-        {"entity_id": "soc_02", "target_type": "social_profile", "platform": "Instagram", "identifier": "@beta", "risk_score": 0.5, "status": "NOT_FLAGGED", "is_official": False, "signals": {}, "reasons": [], "exclusion_reason": None, "review_required": False, "evidence_source": "simulated", "evidence_timestamp": None, "ring_id": None},
-        {"entity_id": "soc_01", "target_type": "social_profile", "platform": "Instagram", "identifier": "@alpha", "risk_score": 0.7, "status": "FLAGGED", "is_official": False, "signals": {}, "reasons": [], "exclusion_reason": None, "review_required": False, "evidence_source": "simulated", "evidence_timestamp": None, "ring_id": None},
-    ]
-    brand = {"brand_id": "brand_03", "name": "Brand Three"}
-    candidates = [
-        {"entity_id": "soc_01", "target_type": "social_profile", "display_name": "Alpha Support"},
-        {"entity_id": "soc_02", "target_type": "social_profile", "display_name": "Beta Support"},
-    ]
-    engine_outputs = [
-        {"entity_id": "soc_01", "evidence": {"match": "a"}},
-        {"entity_id": "soc_02", "evidence": {"match": "b"}},
-    ]
-    clusters = [
-        {"ring_id": "ring_b", "linked_candidate_ids": ["soc_02"]},
-        {"ring_id": "ring_a", "linked_candidate_ids": ["soc_01"]},
-    ]
+    results, brand, candidates, engine_outputs, clusters = _valid_cluster_inputs()
+    clusters = list(reversed(clusters))
 
     report = build_report(results, brand, candidates, engine_outputs, clusters)
 
-    assert [item["entity_id"] for item in report["results"]] == ["soc_01", "soc_02"]
-    assert [cluster["ring_id"] for cluster in report["clusters"]] == ["ring_a", "ring_b"]
-    assert report["results"][0]["ring_id"] == "ring_a"
-    assert report["results"][1]["ring_id"] == "ring_b"
+    assert [item["entity_id"] for item in report["results"]] == [
+        "c1", "c2", "c3", "c4",
+    ]
+    assert [cluster["ring_id"] for cluster in report["clusters"]] == [
+        "ring_001", "ring_002",
+    ]
+    assert [item["ring_id"] for item in report["results"]] == [
+        "ring_001", "ring_001", "ring_002", "ring_002",
+    ]
 
 
 def test_build_report_preserves_link_reasons_and_ring_assignment():
-    results = [
-        {"entity_id": "soc_01", "target_type": "social_profile", "platform": "Instagram", "identifier": "@alpha", "risk_score": 0.7, "status": "FLAGGED", "is_official": False, "signals": {}, "reasons": ["risk"], "exclusion_reason": None, "review_required": False, "evidence_source": "simulated", "evidence_timestamp": None, "ring_id": None},
-        {"entity_id": "soc_02", "target_type": "social_profile", "platform": "Instagram", "identifier": "@beta", "risk_score": 0.2, "status": "NOT_FLAGGED", "is_official": False, "signals": {}, "reasons": [], "exclusion_reason": None, "review_required": False, "evidence_source": "simulated", "evidence_timestamp": None, "ring_id": None},
-        {"entity_id": "soc_03", "target_type": "social_profile", "platform": "Instagram", "identifier": "@gamma", "risk_score": 0.1, "status": "NOT_FLAGGED", "is_official": False, "signals": {}, "reasons": [], "exclusion_reason": None, "review_required": False, "evidence_source": "simulated", "evidence_timestamp": None, "ring_id": None},
-    ]
-    brand = {"brand_id": "brand_04", "name": "Brand Four"}
-    candidates = [
-        {"entity_id": "soc_01", "target_type": "social_profile", "display_name": "Alpha"},
-        {"entity_id": "soc_02", "target_type": "social_profile", "display_name": "Beta"},
-        {"entity_id": "soc_03", "target_type": "social_profile", "display_name": "Gamma"},
-    ]
-    engine_outputs = [
-        {"entity_id": "soc_01", "evidence": {"note": "alpha"}},
-        {"entity_id": "soc_02", "evidence": {"note": "beta"}},
-        {"entity_id": "soc_03", "evidence": {"note": "gamma"}},
-    ]
-    clusters = [
-        {"ring_id": "ring_01", "linked_candidate_ids": ["soc_01", "soc_02"], "link_reasons": [{"from": "soc_01", "to": "soc_02", "reason": "shared redirect"}]},
-        {"ring_id": "ring_02", "linked_candidate_ids": ["soc_03"], "link_reasons": [{"from": "soc_03", "to": "soc_03", "reason": "solo ring"}]},
-    ]
+    results, brand, candidates, engine_outputs, clusters = _valid_cluster_inputs()
 
     report = build_report(results, brand, candidates, engine_outputs, clusters)
 
-    assert report["clusters"][0]["link_reasons"][0]["reason"] == "shared redirect"
-    assert report["results"][0]["ring_id"] == "ring_01"
-    assert report["results"][1]["ring_id"] == "ring_01"
-    assert report["results"][2]["ring_id"] == "ring_02"
+    assert report["clusters"][0]["link_reasons"][0] == {
+        "candidate_id_1": "c1",
+        "candidate_id_2": "c2",
+        "indicator_type": "contact_number",
+        "reason": "Exact match on normalized contact number",
+    }
+    assert report["clusters"][1]["link_reasons"][0] == {
+        "candidate_id_1": "c3",
+        "candidate_id_2": "c4",
+        "indicator_type": "redirect_url",
+        "reason": "Exact match on normalized full redirect URL",
+    }
+    assert [item["ring_id"] for item in report["results"]] == [
+        "ring_001", "ring_001", "ring_002", "ring_002",
+    ]
 
 
 def test_build_report_keeps_unassigned_results_none_for_valid_clusters():
@@ -285,32 +345,13 @@ def test_report_mutates_nested_evidence_without_changing_engine_outputs():
 
 
 def test_report_mutates_nested_link_reasons_without_changing_clusters_input():
-    results = [{
-        "entity_id": "soc_05",
-        "target_type": "social_profile",
-        "platform": "Instagram",
-        "identifier": "@epsilon",
-        "risk_score": 0.8,
-        "status": "FLAGGED",
-        "is_official": False,
-        "signals": {},
-        "reasons": [],
-        "exclusion_reason": None,
-        "review_required": False,
-        "evidence_source": "simulated",
-        "evidence_timestamp": None,
-        "ring_id": None,
-    }]
-    candidates = [{"entity_id": "soc_05", "target_type": "social_profile", "display_name": "Epsilon"}]
-    engine_outputs = [{"entity_id": "soc_05", "evidence": {}}]
-    clusters = [{
-        "ring_id": "ring_01",
-        "linked_candidate_ids": ["soc_05"],
-        "link_reasons": [{"from": "soc_05", "to": "soc_05", "reason": "shared redirect"}],
-    }]
+    results, brand, candidates, engine_outputs, clusters = _valid_cluster_inputs()
 
-    report = build_report(results, {"brand_id": "brand_07", "name": "Brand Seven"}, candidates, engine_outputs, clusters)
+    report = build_report(results, brand, candidates, engine_outputs, clusters)
     report["clusters"][0]["link_reasons"][0]["reason"] = "modified"
 
-    assert clusters[0]["link_reasons"][0]["reason"] == "shared redirect"
+    assert (
+        clusters[0]["link_reasons"][0]["reason"]
+        == "Exact match on normalized contact number"
+    )
     assert report["clusters"][0]["link_reasons"][0]["reason"] == "modified"
