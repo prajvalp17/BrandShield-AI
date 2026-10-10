@@ -205,3 +205,62 @@ def test_build_report_does_not_mutate_input_results_or_candidates():
     assert report["results"][0]["evidence"] == {"k": "v"}
     assert "label" not in results[0]
     assert "evidence" not in results[0]
+
+
+def test_report_mutates_nested_evidence_without_changing_engine_outputs():
+    results = [{
+        "entity_id": "soc_04",
+        "target_type": "social_profile",
+        "platform": "Instagram",
+        "identifier": "@delta",
+        "risk_score": 0.55,
+        "status": "NOT_FLAGGED",
+        "is_official": False,
+        "signals": {},
+        "reasons": [],
+        "exclusion_reason": None,
+        "review_required": False,
+        "evidence_source": "simulated",
+        "evidence_timestamp": None,
+        "ring_id": None,
+    }]
+    candidates = [{"entity_id": "soc_04", "target_type": "social_profile", "display_name": "Delta"}]
+    engine_outputs = [{"entity_id": "soc_04", "evidence": {"detail": {"note": "keep"}}}]
+
+    report = build_report(results, {"brand_id": "brand_06", "name": "Brand Six"}, candidates, engine_outputs)
+    report["results"][0]["evidence"]["detail"]["note"] = "changed"
+
+    assert engine_outputs[0]["evidence"] == {"detail": {"note": "keep"}}
+    assert report["results"][0]["evidence"]["detail"]["note"] == "changed"
+
+
+def test_report_mutates_nested_link_reasons_without_changing_clusters_input():
+    results = [{
+        "entity_id": "soc_05",
+        "target_type": "social_profile",
+        "platform": "Instagram",
+        "identifier": "@epsilon",
+        "risk_score": 0.8,
+        "status": "FLAGGED",
+        "is_official": False,
+        "signals": {},
+        "reasons": [],
+        "exclusion_reason": None,
+        "review_required": False,
+        "evidence_source": "simulated",
+        "evidence_timestamp": None,
+        "ring_id": None,
+    }]
+    candidates = [{"entity_id": "soc_05", "target_type": "social_profile", "display_name": "Epsilon"}]
+    engine_outputs = [{"entity_id": "soc_05", "evidence": {}}]
+    clusters = [{
+        "ring_id": "ring_01",
+        "linked_candidate_ids": ["soc_05"],
+        "link_reasons": [{"from": "soc_05", "to": "soc_05", "reason": "shared redirect"}],
+    }]
+
+    report = build_report(results, {"brand_id": "brand_07", "name": "Brand Seven"}, candidates, engine_outputs, clusters)
+    report["clusters"][0]["link_reasons"][0]["reason"] = "modified"
+
+    assert clusters[0]["link_reasons"][0]["reason"] == "shared redirect"
+    assert report["clusters"][0]["link_reasons"][0]["reason"] == "modified"

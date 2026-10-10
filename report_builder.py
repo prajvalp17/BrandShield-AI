@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from copy import deepcopy
 from typing import Any
 
 
@@ -25,7 +25,7 @@ def _sorted_clusters(clusters: list[dict[str, Any]] | None) -> list[dict[str, An
         linked = cluster.get("linked_candidate_ids")
         if ring_id is None or not isinstance(linked, list):
             continue
-        cleaned = dict(cluster)
+        cleaned = deepcopy(cluster)
         cleaned["linked_candidate_ids"] = [str(entity_id) for entity_id in linked if entity_id is not None]
         normalized.append(cleaned)
 
@@ -82,7 +82,7 @@ def build_report(
 
         engine_output = engine_output_by_id.get(str(entity_id)) if entity_id is not None else None
         evidence = engine_output.get("evidence") if isinstance(engine_output, dict) and isinstance(engine_output.get("evidence"), dict) else {}
-        report_result["evidence"] = evidence
+        report_result["evidence"] = deepcopy(evidence)
 
         ring_id = cluster_by_entity.get(str(entity_id)) if entity_id is not None else None
         report_result["ring_id"] = ring_id if ring_id is not None else None
