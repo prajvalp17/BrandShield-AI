@@ -42,6 +42,11 @@ class NormalizationTests(unittest.TestCase):
             normalize_identifier("@OfficialBrand"),
             "officialbrand",
         )
+    def test_redirect_url_preserves_trailing_slash(self):
+        self.assertEqual(
+            normalize_redirect_url("https://example.com/a/"),
+            "https://example.com/a/",
+    )
 
     def test_package_id_preserves_dots_and_hyphens(self):
         self.assertEqual(
