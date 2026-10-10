@@ -190,10 +190,16 @@ def evaluate(brand: dict, candidate: dict) -> dict:
         "one time password",
         "account suspended",
         "claim your reward",
+        "claim rewards",
         "confirm your credentials",
         "login to verify",
+        "card number to claim rewards",
+        "card details to claim rewards",
+        "enter your card number",
+        "submit your card details",
+        "card number to unlock reward",
+        "card details to unlock reward",
     )
-
     normalized_description = normalize_text(description)
 
     if not normalized_description:
