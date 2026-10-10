@@ -1,13 +1,13 @@
 
 """
 BrandShield AI - App Detection Engine
-Member 3: App Detection & Clustering
+Member 3: App Detection
 
 Contract interface:
     evaluate(brand: dict, candidate: dict) -> dict
 
-This engine produces explainable signals.
-Final risk scoring and status are handled by score_engine.combine().
+This module generates explainable app-risk signals.
+Final scoring and status assignment belong to score_engine.combine().
 """
 
 import unicodedata
@@ -22,25 +22,23 @@ from normalization import (
 
 
 # --------------------------------------------------
-# TEXT NORMALIZATION
+# TEXT NORMALIZATION AND SIMILARITY
 # --------------------------------------------------
 
 def normalize_text(value):
-    """Normalize text for comparisons. Missing values become empty strings."""
+    """Normalize text for comparison. Missing values become empty strings."""
     if value is None:
         return ""
 
-    value = unicodedata.normalize("NFKC", str(value))
-    value = value.casefold()
-    return " ".join(value.split())
+    text = unicodedata.normalize("NFKC", str(value))
+    return " ".join(text.casefold().split())
 
-
-# --------------------------------------------------
-# SIMILARITY HELPERS
-# --------------------------------------------------
 
 def similarity(value_a, value_b):
-    """Return normalized similarity from 0.0 to 1.0, or None if missing."""
+    """
+    Return similarity between 0.0 and 1.0.
+    Return None when either value is missing.
+    """
     a = normalize_text(value_a)
     b = normalize_text(value_b)
 
@@ -53,8 +51,8 @@ def similarity(value_a, value_b):
 def best_similarity(value, official_values):
     """Return the highest similarity to available official values."""
     scores = [
-        similarity(value, official)
-        for official in official_values
+        similarity(value, official_value)
+        for official_value in official_values
     ]
 
     scores = [score for score in scores if score is not None]
@@ -62,7 +60,7 @@ def best_similarity(value, official_values):
 
 
 def make_signal(value, category, reason):
-    """Create a signal record matching CONTRACT.md."""
+    """Create a signal record following CONTRACT v0.7."""
     return {
         "value": value,
         "category": category,
@@ -79,18 +77,22 @@ def find_official_apps(brand, platform):
     official_apps = brand.get("official_apps") or []
 
     return [
-        item
-        for item in official_apps
-        if isinstance(item, dict)
-        and item.get("platform") == platform
+        app
+        for app in official_apps
+        if isinstance(app, dict)
+        and app.get("platform") == platform
     ]
 
 
 def is_registered_official_package(package_id, official_apps):
-    """Check for an exact normalized registered package ID."""
+    """
+    Check for an exact normalized package ID match.
+
+    Platform filtering is performed by find_official_apps() first.
+    """
     normalized_package = normalize_package_id(package_id)
 
-    if not normalized_package:
+    if normalized_package is None:
         return False
 
     for official_app in official_apps:
@@ -108,15 +110,19 @@ def is_registered_official_package(package_id, official_apps):
 
 
 # --------------------------------------------------
-# CONTRACT ENGINE INTERFACE
+# APP DETECTION ENGINE
 # --------------------------------------------------
 
 def evaluate(brand: dict, candidate: dict) -> dict:
     """
     Evaluate an app listing against a brand registry entry.
 
-    Returns explainable signals, evidence and normalized clustering
-    indicators. Does not calculate the final risk score or status.
+    Required output:
+        entity_id, target_type, platform, identifier,
+        is_official, exclusion_reason, signals,
+        evidence_source, evidence_timestamp, indicators, evidence.
+
+    This function does not calculate a final risk score or status.
     """
 
     entity_id = candidate.get("entity_id")
@@ -128,7 +134,7 @@ def evaluate(brand: dict, candidate: dict) -> dict:
 
     official_apps = find_official_apps(brand, platform)
 
-    # Official matching takes priority over risk scoring.
+    # Official packages are identified before scoring.
     is_official = is_registered_official_package(
         package_id,
         official_apps,
@@ -147,9 +153,9 @@ def evaluate(brand: dict, candidate: dict) -> dict:
     )
 
     official_package_ids = [
-        item.get("package_id")
-        for item in official_apps
-        if item.get("package_id")
+        app.get("package_id")
+        for app in official_apps
+        if app.get("package_id")
     ]
 
     package_similarity = best_similarity(
@@ -158,6 +164,8 @@ def evaluate(brand: dict, candidate: dict) -> dict:
     )
 
     # Content signals
+    # official_descriptions is optional; it is not a required field
+    # in the frozen brand-registry schema.
     official_descriptions = brand.get("official_descriptions") or []
 
     description_similarity = best_similarity(
@@ -192,8 +200,8 @@ def evaluate(brand: dict, candidate: dict) -> dict:
 
         if found_phrases:
             credential_bait_reason = (
-                "Description contains configured credential-related phrases: "
-                + ", ".join(found_phrases)
+                "Description contains configured credential-related "
+                "phrases: " + ", ".join(found_phrases)
             )
         else:
             credential_bait_reason = (
@@ -202,9 +210,9 @@ def evaluate(brand: dict, candidate: dict) -> dict:
 
     # Publisher metadata signal
     registered_publishers = {
-        normalize_text(item.get("publisher"))
-        for item in official_apps
-        if item.get("publisher")
+        normalize_text(app.get("publisher"))
+        for app in official_apps
+        if app.get("publisher")
     }
 
     normalized_publisher = normalize_text(publisher)
@@ -225,7 +233,7 @@ def evaluate(brand: dict, candidate: dict) -> dict:
             "Publisher does not match a registered official publisher."
         )
 
-    # Contract-defined signals
+    # Signal names and categories are fixed by the contract.
     signals = {
         "app_name_similarity": make_signal(
             app_name_similarity,
@@ -266,7 +274,6 @@ def evaluate(brand: dict, candidate: dict) -> dict:
         ),
     }
 
-    # Evidence for downstream reporting
     evidence = {
         "app_name": app_name,
         "package_id": package_id,
@@ -317,8 +324,8 @@ def detect_app(app, brand):
     engine_output = evaluate(brand, candidate)
 
     legacy_signals = {
-        name: record["value"]
-        for name, record in engine_output["signals"].items()
+        name: signal["value"]
+        for name, signal in engine_output["signals"].items()
     }
 
     return {
@@ -330,9 +337,9 @@ def detect_app(app, brand):
         ),
         "signals": legacy_signals,
         "reasons": [
-            record["reason"]
-            for record in engine_output["signals"].values()
-            if record["reason"]
+            signal["reason"]
+            for signal in engine_output["signals"].values()
+            if signal["reason"]
         ],
         "engine_output": engine_output,
     }

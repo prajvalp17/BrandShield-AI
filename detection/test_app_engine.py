@@ -2,10 +2,11 @@
 import sys
 from pathlib import Path
 
-# Allow imports from the detection folder when pytest runs at the repo root.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# Add the repository root to Python's import path.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app_engine import evaluate
+
 
 
 brand = {
