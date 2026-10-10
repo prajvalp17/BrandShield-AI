@@ -1,5 +1,5 @@
 # CONTRACT.md — BrandShield AI
-**Version:** 0.5-RULED  |  **Owner / tie-breaker:** Member 1  |  **Status:** NOT SIGNED (rulings below take effect on sign-off)
+**Version:** 0.7-RULED  |  **Owner / tie-breaker:** Member 1  |  **Status:** NOT SIGNED (rulings below take effect on sign-off)
 Single source of truth for schemas and interfaces. If anything elsewhere disagrees, this file wins.
 Rulings are recorded in section 9. Anything still marked **[OPEN]** must be closed by the date stated next to it (default: the H0–2 session).
 
@@ -78,13 +78,14 @@ clustering.cluster(results: list[dict], candidates: list[dict]) -> list[dict]   
 {
   "entity_id": "", "target_type": "", "platform": "", "identifier": "",
   "risk_score": 0.0, "status": "CLEARED|NOT_FLAGGED|FLAGGED",
-  "is_official": false, "signals": {}, "reasons": [],
+  "is_official": false, "signals": {"handle_similarity": 0.92}, "reasons": [],
   "exclusion_reason": null, "review_required": false,
   "evidence_source": "simulated", "evidence_timestamp": null,
   "ring_id": null
 }
 ```
 - `identifier` = `username` for social, `package_id` for apps.
+- **`signals` in the result** is a flat mapping `{signal_name: float}` containing only the non-null signals that were scored, each rounded to 3 decimals. Category and reason text are not repeated there (reasons are in `reasons`; the full signal records stay in the engine output). `signals` is `{}` for `CLEARED` records and when no signal had data.
 - **Display labels:** the result record carries no brand name or display name and gets none added. The UI looks up the candidate by `entity_id` in the candidate data (social: `display_name`; app: `app_name`) and the brand by `brand_id` in the registry. Report data from Member 4 includes `brand` (id and name) and, per record, a `label` (display_name or app_name) so a report is readable on its own.
 - **Null handling in the UI:** `null` is shown as "Not available" and is never replaced with a guessed value. Empty `reasons` shows "No reasons recorded".
 - **Official assets:** the UI shows the returned `status` (CLEARED) and `exclusion_reason`; it never recalculates status.
@@ -99,7 +100,9 @@ clustering.cluster(results: list[dict], candidates: list[dict]) -> list[dict]   
 - `NOT_FLAGGED`: everything else.
 - `review_required` = true when either (a) `risk_score` ≥ 0.70 but fewer than 2 active categories (flag blocked for lack of independent evidence), or (b) `NOT_FLAGGED` and 0.50 ≤ `risk_score` < 0.70 (borderline). Otherwise false. Fully deterministic; no other triggers.
 - Correlated signals (`handle_similarity` + `name_similarity`) belong to the same category and count once.
-- `risk_score` formula is Member 4's; it must ignore null signals and stay within 0–1.
+- **Scoring formula (ruling 17):** category value = the highest non-null signal in that category. `risk_score` = Σ(weight × category value) ÷ Σ(weight), summed only over categories that have at least one non-null signal. Weights: identity 0.45, content 0.35, metadata 0.20. A category with no data is excluded and its weight is redistributed, so missing data never lowers the score. If no category has data, `risk_score` = 0.0 with the reason "Insufficient evidence to calculate risk".
+- **Comparisons and rounding (ruling 17):** all comparisons against 0.70, 0.60 and 0.50 use the score **rounded to 6 decimals** (this removes floating-point noise, e.g. two categories at 0.70 must score exactly 0.70). The reported `risk_score` is rounded to 3 decimals. The status and `review_required` must never contradict the reported score.
+- **Input validation (ruling 19, pending Member 4 acknowledgement):** `combine` raises an error, and does not fill in defaults, when a required input field is missing, a signal has an unknown `category`, or a signal `value` is outside 0.0–1.0 and not null.
 - The UI shows the returned status and never re-decides.
 
 ## 6. Report structure and ownership
@@ -136,12 +139,13 @@ The report builder returns a JSON-serializable dictionary with these fixed top-l
 ```
 
 - `brand`: always contains `brand_id` and `name`.
-- `results`: each entry preserves every field from the frozen result schema and adds `label` and `evidence` to a **new report dictionary**. The builder must not mutate the original result records. The only frozen field it may fill in the copy is `ring_id` (see below).
+- `results`: each entry preserves every field from the frozen result schema and adds `label` and `evidence` to a **new report dictionary**. The builder must not mutate the original result records, and must deep-copy so that nothing in the report shares objects with its inputs (`signals`, `reasons`, `evidence`). The only frozen field it may fill in the copy is `ring_id` (see below).
 - `label`: social `display_name` or app `app_name`, looked up in `candidates` by `entity_id`; `null` if missing (never guessed).
 - `evidence`: the `evidence` dict from the matching entry in `engine_outputs` (by `entity_id`); `{}` when unavailable. (`combine` does not carry evidence, which is why the builder takes `engine_outputs`.)
 - `ring_id`: `null` in every `combine` result. When clustering ships, the builder fills `ring_id` in its report copy from `clusters`; otherwise it stays `null`.
 - **Deterministic output** (so the hash is reproducible): `results` sorted by `entity_id`, `clusters` by `ring_id`, no generated-at timestamp, only JSON-serializable values.
 - `clusters`: always present. Use `[]` when clustering is unavailable. When clustering ships, use Member 3's cluster-record structure, including `ring_id`, `linked_candidate_ids`, and a reason for each link. **[OPEN]** Member 3 to write the exact record structure (including how a link reason is stored) into this section before H13.
+- **Cluster validity (ruling 22):** each candidate belongs to at most one cluster, and each `ring_id` appears once. If the `clusters` input has a candidate in more than one cluster, a duplicate `ring_id`, or a cluster without `ring_id` or `linked_candidate_ids`, `build_report` raises `ValueError` naming the offending ids. It never picks a winner and never silently drops a cluster. Clusters come from Union-Find (section 7), so they are disjoint by construction; overlap means the clustering output is wrong and must be fixed at its source (Member 3), not hidden in the report.
 - The report builder only assembles report data. It must not recalculate risk scores, change statuses, serialize JSON, or calculate hashes.
 - Report-only fields `label` and `evidence` must not be added to the frozen result schema returned by the scoring engine.
 
@@ -166,16 +170,21 @@ Counted separately: official-asset false positive (official FLAGGED), benign fal
 | 4 | `ring_id` / `evidence_hash` (M4, M5) | Keep `ring_id` (nullable). Drop `evidence_hash` (M5 owns hashing) |
 | 5 | `review_required` rule (M4, M5) | Section 5, two deterministic triggers |
 | 6 | Where `evidence` and linked ids go (M2, M4) | Report data only |
-| 7 | `report_builder` interface (M3/M4/M5) | Frozen interface and report keys in sections 3 and 6. Signature takes `candidates` and `engine_outputs` because label and evidence are not in `combine` results. Cluster-record structure is [OPEN] for Member 3. |
-| 13 | Who sets `ring_id` | Null in `combine` results; the report builder fills it in its report copy from `clusters` |
-| 14 | Report determinism | Sorted results and clusters, no generated-at timestamp, so the SHA-256 is reproducible |
+| 7 | `report_builder` interface (M3/M4/M5) | Frozen interface and report keys in sections 3 and 6. Signature takes `candidates` and `engine_outputs` because label and evidence are not in `combine` results. Cluster-record structure is [OPEN] for Member 3, due before H13. |
 | 8 | Official exclusion (M3) | Section 2: before scoring, cannot be overridden |
 | 9 | Contact/redirect as social signals (M2) | Exposed as `indicators`, not scored |
 | 10 | Identifier display (M5) | `identifier` = `username` (social) / `package_id` (app); UI shows display_name or app_name as the label via lookup |
 | 11 | Display/brand fields (M5) | Not added to the result schema; report data carries `brand` and per-record `label` (M4) |
 | 12 | Null behaviour and hash claim (M5) | Section 4 and section 6 |
-| 15 | `score_engine.combine()` input contract (M2/M3/M4) | Member 1 ruling: keep the one-argument signature. Each engine output must include `entity_id`, `target_type`, `platform`, `identifier`, `is_official`, `exclusion_reason`, `signals`, `evidence_source`, and nullable `evidence_timestamp`; `indicators` and `evidence` remain available for clustering/reporting only. Exact field rules are in section 3. Member 4 to acknowledge this contract before sign-off. |
-| 16 | Candidate-to-report label flow (M4/M5) | Member 1 ruling: retain `report_builder.build_report(results, brand, candidates, engine_outputs, clusters=None)`. `candidates` supplies labels by `entity_id` (`display_name` for social; `app_name` for apps); `engine_outputs` supplies `evidence`; `results` remains frozen. No label or evidence fields are added to `combine()` output. Member 4 and Member 5 to acknowledge this contract before sign-off. |
+| 13 | Who sets `ring_id` | Null in `combine` results; the report builder fills it in its report copy from `clusters` |
+| 14 | Report determinism | Sorted results and clusters, no generated-at timestamp, so the SHA-256 is reproducible |
+| 15 | `score_engine.combine()` input contract (M2/M3/M4) | Keep the one-argument signature. Each engine output must include `entity_id`, `target_type`, `platform`, `identifier`, `is_official`, `exclusion_reason`, `signals`, `evidence_source`, and nullable `evidence_timestamp`; `indicators` and `evidence` are for clustering/reporting only. Field rules in section 3. Member 4 to acknowledge before sign-off. |
+| 16 | Candidate-to-report label flow (M4/M5) | Retain `build_report(results, brand, candidates, engine_outputs, clusters=None)`. `candidates` supplies labels, `engine_outputs` supplies `evidence`, `results` stays frozen. Members 4 and 5 to acknowledge before sign-off. |
+| 17 | Scoring formula and rounding (M4) | Section 5: weights 0.45/0.35/0.20, renormalized over categories with data; comparisons use the score rounded to 6 decimals; reported score rounded to 3. Found during PR review: unrounded comparison made two categories at exactly 0.70 come out NOT_FLAGGED while displaying 0.7. |
+| 18 | Shape of `signals` in the result (M4/M5) | Flat `{signal_name: float}`, non-null scored signals only (section 4) |
+| 19 | `combine` input validation (M4) | Raise on missing required fields, unknown category, or out-of-range value; no silent defaults. Pending Member 4 acknowledgement. |
+| 20 | Repo layout (M3) | All modules at the repo root as in the roadmap (`social_engine.py`, `app_engine.py`, `score_engine.py`, `report_builder.py`, `normalization.py`, `clustering.py`). Member 3 to move `detection/app_engine.py`. Pending Member 3 acknowledgement. |
+| 21 | Report builder copies (M4) | Deep copy; the report shares no objects with its inputs (section 6) |
 
 ## 10. Sign-off
 | Member | Role | Signed (name, hour) |
@@ -183,5 +192,6 @@ Counted separately: official-asset false positive (official FLAGGED), benign fal
 | 1 | Data & Evaluation | |
 | 2 | Social & Normalization | |
 | 3 | App & Clustering | |
+| 22 | Candidate in several clusters (M4) | Reject: `build_report` raises `ValueError` on overlapping clusters, duplicate `ring_id`, or malformed clusters (section 6). Chosen over "last wins" because that silently shows a wrong ring in an evidence report. |
 | 4 | Scoring & Report Data | |
 | 5 | UI, Export & Deployment | |
