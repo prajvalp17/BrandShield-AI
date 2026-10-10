@@ -93,6 +93,37 @@ def test_two_active_categories_flag_at_threshold():
     assert set(result["signals"]) >= {"handle_similarity", "scam_phrase"}
 
 
+def test_identity_and_publisher_score_requires_review_below_flag_threshold():
+    result = combine(build_output(signals={
+        "handle_similarity": {"value": 0.90, "category": "identity", "reason": "similar app name"},
+        "scam_phrase": {"value": 0.17, "category": "content", "reason": "weak content match"},
+        "publisher_mismatch": {"value": 1.00, "category": "metadata", "reason": "unrecognized publisher"},
+    }))
+
+    assert result["status"] == "NOT_FLAGGED"
+    assert result["review_required"] is True
+    assert result["risk_score"] == pytest.approx(0.664)
+
+
+def test_credential_bait_content_max_flags_with_three_active_categories():
+    result = combine(build_output(signals={
+        "handle_similarity": {"value": 0.90, "category": "identity", "reason": "similar app name"},
+        "scam_phrase": {"value": 0.17, "category": "content", "reason": "weak content match"},
+        "credential_bait": {"value": 1.00, "category": "content", "reason": "credential request and reward lure"},
+        "publisher_mismatch": {"value": 1.00, "category": "metadata", "reason": "unrecognized publisher"},
+    }))
+
+    active_categories = {
+        reason.split(" category active ", 1)[0]
+        for reason in result["reasons"]
+        if " category active " in reason
+    }
+    assert result["status"] == "FLAGGED"
+    assert result["review_required"] is False
+    assert result["risk_score"] == pytest.approx(0.955)
+    assert active_categories == {"content", "identity", "metadata"}
+
+
 def test_exact_weighted_threshold_flags_with_two_active_categories():
     result = combine(build_output(signals={
         "scam_phrase": {"value": 0.70, "category": "content", "reason": "suspicious phrase"},
