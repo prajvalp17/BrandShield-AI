@@ -74,6 +74,12 @@ def test_unknown_signal_category_raises():
         }))
 
 
+@pytest.mark.parametrize("target_type", [[], {}])
+def test_invalid_unhashable_target_type_raises_value_error(target_type):
+    with pytest.raises(ValueError, match="target_type"):
+        combine(build_output(target_type=target_type))
+
+
 def test_two_active_categories_flag_at_threshold():
     result = combine(build_output(signals={
         "handle_similarity": {"value": 0.90, "category": "identity", "reason": "very similar"},

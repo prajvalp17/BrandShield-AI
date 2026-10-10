@@ -21,6 +21,8 @@ REQUIRED_INPUT_FIELDS = (
     "evidence_timestamp",
 )
 
+VALID_TARGET_TYPES = {"social_profile", "app_listing"}
+
 
 def _coerce_signal_value(name: str, value: Any) -> float | None:
     if value is None:
@@ -60,6 +62,15 @@ def combine(engine_output: dict) -> dict:
     missing_fields = [field for field in REQUIRED_INPUT_FIELDS if field not in engine_output]
     if missing_fields:
         raise ValueError(f"engine_output is missing required fields: {', '.join(missing_fields)}")
+
+    # Section 3 of CONTRACT.md: validate target_type explicitly.
+    target_type = engine_output["target_type"]
+
+    if not isinstance(target_type, str) or target_type not in VALID_TARGET_TYPES:
+        raise ValueError(
+            "target_type must be exactly 'social_profile' or 'app_listing'; "
+            f"got {target_type!r}"
+        )
 
     is_official = bool(engine_output.get("is_official", False))
     if is_official:
