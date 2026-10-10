@@ -354,7 +354,6 @@ def test_registry_optional_fields_are_lists_of_strings(brands):
             if key in b:
                 assert isinstance(b[key], list) and all(isinstance(x, str) and x for x in b[key]), (b["brand_id"], key)
 
-@pytest.mark.xfail(reason="Ruling 23 pending: Member 2 to keep the last 10 digits (remove this marker once it passes)", strict=False)
 def test_contact_number_normalization_ruling_23():
     n = pytest.importorskip("normalization").normalize_contact_number
     same = {n("+91 90000 11111"), n("90000 11111"), n("090000-11111"), n("(+91) 9000011111")}
@@ -404,7 +403,6 @@ def test_cluster_record_structure_ruling_25():
     groups = sorted(sorted(c["linked_candidate_ids"]) for c in out)
     assert groups == [["c1", "c2"], ["c3", "c4"]], groups   # c5 (one digit off), c6 (not flagged), c7 (alone) stay out
 
-@pytest.mark.xfail(reason="Ruling 23 pending: needs last-10-digit normalization (remove this marker once it passes)", strict=False)
 def test_clustering_links_numbers_written_differently():
     cluster = pytest.importorskip("clustering").cluster
     results, cands = _cluster_inputs(phone_b="90000 11111")
