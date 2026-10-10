@@ -61,6 +61,24 @@ def test_two_active_categories_flag_at_threshold():
     assert set(result["signals"]) >= {"handle_similarity", "scam_phrase"}
 
 
+def test_exact_weighted_threshold_flags_with_two_active_categories():
+    result = combine(build_output(signals={
+        "scam_phrase": {"value": 0.70, "category": "content", "reason": "suspicious phrase"},
+        "account_age": {"value": 0.70, "category": "metadata", "reason": "new account"},
+    }))
+
+    assert result["status"] == "FLAGGED"
+
+
+def test_weighted_score_below_threshold_is_not_flagged():
+    result = combine(build_output(signals={
+        "scam_phrase": {"value": 0.6999, "category": "content", "reason": "suspicious phrase"},
+        "account_age": {"value": 0.6999, "category": "metadata", "reason": "new account"},
+    }))
+
+    assert result["status"] == "NOT_FLAGGED"
+
+
 def test_one_active_category_triggers_review_without_flagging():
     result = combine(build_output(signals={
         "handle_similarity": {"value": 0.90, "category": "identity", "reason": "similar handle"},

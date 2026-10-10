@@ -102,6 +102,7 @@ def combine(engine_output: dict) -> dict:
         WEIGHTS[category] * value
         for category, value in available_categories.items()
     ) / total_weight
+    risk_score = round(float(risk_score), 6)
 
     active_categories = {
         category for category, value in available_categories.items()
