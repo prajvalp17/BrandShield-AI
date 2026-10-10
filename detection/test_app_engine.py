@@ -151,3 +151,85 @@ def test_official_package_matching_respects_platform():
     result = evaluate(brand, candidate)
 
     assert result["is_official"] is False
+def test_credential_bait_detects_card_number_reward_phrases():
+    from app_engine import evaluate
+
+    descriptions = [
+        "Enter your card number to claim rewards",
+        "Submit your card details to unlock a reward",
+        "Enter your card number to unlock reward",
+    ]
+
+    for description in descriptions:
+        candidate = make_candidate(
+            entity_id="app_credential_bait",
+            description=description,
+        )
+        result = evaluate(brand, candidate)
+
+        assert result["signals"]["credential_bait"]["value"] == 1.0, (
+            description,
+            result["signals"]["credential_bait"],
+        )
+
+
+def test_credential_bait_does_not_flag_ordinary_reward_descriptions():
+    from app_engine import evaluate
+
+    descriptions = [
+        "Earn reward points with our loyalty program",
+        "View available rewards in the official app",
+    ]
+
+    for description in descriptions:
+        candidate = make_candidate(
+            entity_id="app_ordinary_rewards",
+            description=description,
+        )
+        result = evaluate(brand, candidate)
+
+        assert result["signals"]["credential_bait"]["value"] == 0.0, (
+            description,
+            result["signals"]["credential_bait"],
+        )
+def test_credential_bait_detects_card_number_reward_phrases():
+    from app_engine import evaluate
+
+    descriptions = [
+        "Enter your card number to claim rewards",
+        "Submit your card details to unlock a reward",
+        "Enter your card number to unlock reward",
+    ]
+
+    for description in descriptions:
+        candidate = make_candidate(
+            entity_id="app_credential_bait",
+            description=description,
+        )
+        result = evaluate(brand, candidate)
+
+        assert result["signals"]["credential_bait"]["value"] == 1.0, (
+            description,
+            result["signals"]["credential_bait"],
+        )
+
+
+def test_credential_bait_does_not_flag_ordinary_reward_descriptions():
+    from app_engine import evaluate
+
+    descriptions = [
+        "Earn reward points with our loyalty program",
+        "View available rewards in the official app",
+    ]
+
+    for description in descriptions:
+        candidate = make_candidate(
+            entity_id="app_ordinary_rewards",
+            description=description,
+        )
+        result = evaluate(brand, candidate)
+
+        assert result["signals"]["credential_bait"]["value"] == 0.0, (
+            description,
+            result["signals"]["credential_bait"],
+        )
