@@ -1,5 +1,5 @@
 # CONTRACT.md — BrandShield AI
-**Version:** 0.8-RULED  |  **Owner / tie-breaker:** Member 1  |  **Status:** NOT SIGNED (rulings below take effect on sign-off)
+**Version:** 0.8.1-RULED  |  **Owner / tie-breaker:** Member 1  |  **Status:** SIGNED by Members 1, 2, 3, 4 and 5 (v0.8, hour 18); rulings below are in effect
 Single source of truth for schemas and interfaces. If anything elsewhere disagrees, this file wins.
 Rulings are recorded in section 9. Anything still marked **[OPEN]** must be closed by the date stated next to it (default: the H0–2 session).
 
@@ -108,7 +108,7 @@ clustering.cluster(results: list[dict], candidates: list[dict]) -> list[dict]   
 - Correlated signals (`handle_similarity` + `name_similarity`) belong to the same category and count once.
 - **Scoring formula (ruling 17):** category value = the highest non-null signal in that category. `risk_score` = Σ(weight × category value) ÷ Σ(weight), summed only over categories that have at least one non-null signal. Weights: identity 0.45, content 0.35, metadata 0.20. A category with no data is excluded and its weight is redistributed, so missing data never lowers the score. If no category has data, `risk_score` = 0.0 with the reason "Insufficient evidence to calculate risk".
 - **Comparisons and rounding (ruling 17):** all comparisons against 0.70, 0.60 and 0.50 use the score **rounded to 6 decimals** (this removes floating-point noise, e.g. two categories at 0.70 must score exactly 0.70). The reported `risk_score` is rounded to 3 decimals. The status and `review_required` must never contradict the reported score.
-- **Input validation (ruling 19, pending Member 4 acknowledgement):** `combine` raises an error, and does not fill in defaults, when a required input field is missing, a signal has an unknown `category`, or a signal `value` is outside 0.0–1.0 and not null.
+- **Input validation (ruling 19):** `combine` raises an error, and does not fill in defaults, when a required input field is missing, a signal has an unknown `category`, or a signal `value` is outside 0.0–1.0 and not null.
 - The UI shows the returned status and never re-decides.
 
 ## 6. Report structure and ownership
@@ -124,7 +124,7 @@ report_builder.build_report(
 ) -> dict
 ```
 
-**Approved signature / data flow (Member 1 ruling; pending Member 4 and Member 5 acknowledgement):** Keep the signature below. The caller passes the original candidate input records in `candidates`; the builder indexes them by `entity_id` and uses `display_name` for `social_profile` or `app_name` for `app_listing`. It must not infer labels from `identifier` or engine evidence. The caller also passes the matching raw engine outputs separately so `evidence` can be copied by `entity_id`. The `results` argument contains only frozen `combine()` results. Member 5 consumes the returned report and owns serialization, hashing, and download.
+**Approved signature / data flow (Member 1 ruling):** Keep the signature below. The caller passes the original candidate input records in `candidates`; the builder indexes them by `entity_id` and uses `display_name` for `social_profile` or `app_name` for `app_listing`. It must not infer labels from `identifier` or engine evidence. The caller also passes the matching raw engine outputs separately so `evidence` can be copied by `entity_id`. The `results` argument contains only frozen `combine()` results. Member 5 consumes the returned report and owns serialization, hashing, and download.
 
 The report builder returns a JSON-serializable dictionary with these fixed top-level keys:
 ```json
@@ -191,25 +191,25 @@ Counted separately: official-asset false positive (official FLAGGED), benign fal
 | 12 | Null behaviour and hash claim (M5) | Section 4 and section 6 |
 | 13 | Who sets `ring_id` | Null in `combine` results; the report builder fills it in its report copy from `clusters` |
 | 14 | Report determinism | Sorted results and clusters, no generated-at timestamp, so the SHA-256 is reproducible |
-| 15 | `score_engine.combine()` input contract (M2/M3/M4) | Keep the one-argument signature. Each engine output must include `entity_id`, `target_type`, `platform`, `identifier`, `is_official`, `exclusion_reason`, `signals`, `evidence_source`, and nullable `evidence_timestamp`; `indicators` and `evidence` are for clustering/reporting only. Field rules in section 3. Member 4 to acknowledge before sign-off. |
-| 16 | Candidate-to-report label flow (M4/M5) | Retain `build_report(results, brand, candidates, engine_outputs, clusters=None)`. `candidates` supplies labels, `engine_outputs` supplies `evidence`, `results` stays frozen. Members 4 and 5 to acknowledge before sign-off. |
+| 15 | `score_engine.combine()` input contract (M2/M3/M4) | Keep the one-argument signature. Each engine output must include `entity_id`, `target_type`, `platform`, `identifier`, `is_official`, `exclusion_reason`, `signals`, `evidence_source`, and nullable `evidence_timestamp`; `indicators` and `evidence` are for clustering/reporting only. Field rules in section 3. |
+| 16 | Candidate-to-report label flow (M4/M5) | Retain `build_report(results, brand, candidates, engine_outputs, clusters=None)`. `candidates` supplies labels, `engine_outputs` supplies `evidence`, `results` stays frozen. |
 | 17 | Scoring formula and rounding (M4) | Section 5: weights 0.45/0.35/0.20, renormalized over categories with data; comparisons use the score rounded to 6 decimals; reported score rounded to 3. Found during PR review: unrounded comparison made two categories at exactly 0.70 come out NOT_FLAGGED while displaying 0.7. |
 | 18 | Shape of `signals` in the result (M4/M5) | Flat `{signal_name: float}`, non-null scored signals only (section 4) |
-| 19 | `combine` input validation (M4) | Raise on missing required fields, unknown category, or out-of-range value; no silent defaults. Pending Member 4 acknowledgement. |
-| 20 | Repo layout (M3) | All modules at the repo root as in the roadmap (`social_engine.py`, `app_engine.py`, `score_engine.py`, `report_builder.py`, `normalization.py`, `clustering.py`). Member 3 to move `detection/app_engine.py`. Pending Member 3 acknowledgement. |
+| 19 | `combine` input validation (M4) | Raise on missing required fields, unknown category, or out-of-range value; no silent defaults. |
+| 20 | Repo layout (M3) | All modules at the repo root as in the roadmap (`social_engine.py`, `app_engine.py`, `score_engine.py`, `report_builder.py`, `normalization.py`, `clustering.py`). Member 3 to move `detection/app_engine.py`. |
 | 21 | Report builder copies (M4) | Deep copy; the report shares no objects with its inputs (section 6) |
+| 22 | Candidate in several clusters (M4) | Reject: `build_report` raises `ValueError` on overlapping clusters, duplicate `ring_id`, or malformed clusters (section 6). Chosen over "last wins" because that silently shows a wrong ring in an evidence report. |
 | 23 | Contact number format (M2, M3) | Digits only, last 10 digits when there are 10 or more, else `None` (section 3). Trailing-slash handling for URLs is [OPEN] for Member 2. |
 | 24 | Official descriptions (M3) | Optional `official_descriptions[]` in the registry; absent means `description_similarity` is `null` (section 2) |
 | 25 | Cluster record structure (M3) | Section 7, as built by Member 3 |
 | 26 | Authorized publishers (M3, M4) | Optional `authorized_publishers[]`; `publisher_mismatch` measured against official plus authorized (section 2) |
-| 27 | Scoring rule for strong identity plus verified publisher mismatch without content evidence (M4) | **[OPEN]** Team decision at H13 with Members 2, 3 and 4. Formula unchanged until then. Judge it on the hold-out set, not only the development data. |
+| 27 | Scoring rule for strong identity plus verified publisher mismatch without content evidence (M4) | **CLOSED, no change.** Formula unchanged. A strong name match with a publisher mismatch does not, by itself, guarantee FLAGGED. When the content category has a low non-null value, such candidates score in the 0.50 to 0.70 band and come out NOT_FLAGGED with `review_required` = true, so a human sees them. Changing the formula risks false positives on legitimate third-party apps and cannot be judged fairly on the hold-out set, which must stay unseen. **Known limitation: it must be stated clearly in the evaluation documentation and on the slide** (condition set by Members 2, 3, 4 and 5, who raised no objection at hour 18). Member 5's added condition: the UI keeps displaying the engine's final outputs and never overrides them. |
 
 ## 10. Sign-off
 | Member | Role | Signed (name, hour) |
 |---|---|---|
-| 1 | Data & Evaluation | |
-| 2 | Social & Normalization | |
-| 3 | App & Clustering | |
-| 22 | Candidate in several clusters (M4) | Reject: `build_report` raises `ValueError` on overlapping clusters, duplicate `ring_id`, or malformed clusters (section 6). Chosen over "last wins" because that silently shows a wrong ring in an evidence report. |
-| 4 | Scoring & Report Data | |
-| 5 | UI, Export & Deployment | |
+| 1 | Data & Evaluation | Kritika Pandey, hour 18 |
+| 2 | Social & Normalization | Sohan, hour 18 |
+| 3 | App & Clustering | Kruthika B Reddy, hour 18 |
+| 4 | Scoring & Report Data | Nandini P, hour 18 |
+| 5 | UI, Export & Deployment | Prajval, hour 18 |
