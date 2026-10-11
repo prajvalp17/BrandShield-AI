@@ -509,7 +509,7 @@ box-shadow: 0 16px 40px rgba(0,0,0,0.32);">
             if candidate.get("brand_id") == brand_id
         ]
 
-        # Strip evaluation labels before candidates enter the pipeline.
+        # Remove evaluation labels before candidates enter any pipeline stage.
         candidates = [
             candidate_for_detection(candidate)
             for candidate in raw_candidates
